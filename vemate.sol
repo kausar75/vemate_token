@@ -56,8 +56,10 @@ contract vemate {
             unlockedToken[msg.sender] = purchaseToken * 85 / 100;
             return unlockedToken[msg.sender];
         }
-        else{
+        else if(dayDifference > 240){
             unlockedToken[msg.sender] = purchaseToken;
+        }
+        else{
             return unlockedToken[msg.sender];
         }
     }

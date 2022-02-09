@@ -1,3 +1,3 @@
-#Vemate
+# Vemate Token
 
 Description

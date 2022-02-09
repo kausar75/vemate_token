@@ -15,7 +15,7 @@ contract vemate {
 
     function transfer(address to, uint amount) public returns(bool){
         //have to call getBalance method
-        require(unlockedToken > amount, 'Insufficient amount');
+        require(unlockedToken[msg.sender] > amount, 'Insufficient amount');
         unlockedToken[to] += amount;
         unlockedToken[msg.sender] -= amount;
 
@@ -29,36 +29,36 @@ contract vemate {
         uint dayDifference = (endTime - purchasedTime) / (3600*24);
 
         if(dayDifference > 21){
-            unlockedToken = purchaseToken * 20 / 100;
-            return unlockedToken;
+            unlockedToken[msg.sender] = purchaseToken * 20 / 100;
+            return unlockedToken[msg.sender];
         }
         else if(dayDifference > 60){
-            unlockedToken = purchaseToken * 30 / 100;
-            return unlockedToken;
+            unlockedToken[msg.sender] = purchaseToken * 30 / 100;
+            return unlockedToken[msg.sender];
         }
         else if(dayDifference > 90){
-            unlockedToken = purchaseToken * 45 / 100;
-            return unlockedToken;
+            unlockedToken[msg.sender] = purchaseToken * 45 / 100;
+            return unlockedToken[msg.sender];
         }
         else if(dayDifference > 120){
-            unlockedToken = purchaseToken * 55 / 100;
-            return unlockedToken;
+            unlockedToken[msg.sender] = purchaseToken * 55 / 100;
+            return unlockedToken[msg.sender];
         }
         else if(dayDifference > 150){
-            unlockedToken = purchaseToken * 65 / 100;
-            return unlockedToken;
+            unlockedToken[msg.sender] = purchaseToken * 65 / 100;
+            return unlockedToken[msg.sender];
         }
         else if(dayDifference > 180){
-            unlockedToken = purchaseToken * 75 / 100;
-            return unlockedToken;
+            unlockedToken[msg.sender] = purchaseToken * 75 / 100;
+            return unlockedToken[msg.sender];
         }
         else if(dayDifference > 210){
-            unlockedToken = purchaseToken * 85 / 100;
-            return unlockedToken;
+            unlockedToken[msg.sender] = purchaseToken * 85 / 100;
+            return unlockedToken[msg.sender];
         }
         else{
-            unlockedToken = purchaseToken;
-            return unlockedToken;
+            unlockedToken[msg.sender] = purchaseToken;
+            return unlockedToken[msg.sender];
         }
     }
 }

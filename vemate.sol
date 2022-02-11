@@ -9,7 +9,7 @@ contract vemate {
     uint unlockedToken;
     mapping(address => uint) public balances;
 
-    //event Transfer(address indexed from, address indexed to, uint amount);
+    event Transfer(address indexed from, address indexed to, uint amount);
 
     constructor(){
         name = "Vemate";
@@ -18,12 +18,11 @@ contract vemate {
     }
 
     function transfer(address to, uint amount) public returns(bool){
-        //have to call getBalance method
         require(balances[msg.sender] > amount, 'Insufficient amount');
         balances[to] += amount;
         balances[msg.sender] -= amount;
 
-        //emit Transfer(msg.sender, to, amount);
+        emit Transfer(msg.sender, to, amount);
         return true;
     }
 

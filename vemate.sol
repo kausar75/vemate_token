@@ -80,11 +80,20 @@ contract vemate {
             balances[msg.sender] += unlockedToken;
             return unlockedToken;
         }
-        else if(timeDifference > 20736000){
+        else if(timeDifference > 20736000 && timeDifference < 31535999){
             //240 days
             unlockedToken = purchaseToken;
             balances[msg.sender] += unlockedToken;
             return unlockedToken;
         }
+        else if(timeDifference > 31536000){
+            annualBonus();
+        }
+    }
+
+    function annualBonus() internal returns(uint){
+        uint bonus = (balances[msg.sender] * 27) / 100;
+        balances[msg.sender] += bonus;
+        return balances[msg.sender];
     }
 }

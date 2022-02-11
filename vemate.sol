@@ -9,7 +9,7 @@ contract vemate {
     uint unlockedToken;
     mapping(address => uint) public balances;
 
-    //event Transfer(address indexed from, address indexed to, uint amount);
+    event Transfer(address indexed from, address indexed to, uint amount);
 
     constructor(){
         name = "Vemate";
@@ -23,7 +23,7 @@ contract vemate {
         balances[to] += amount;
         balances[msg.sender] -= amount;
 
-        //emit Transfer(msg.sender, to, amount);
+        emit Transfer(msg.sender, to, amount);
         return true;
     }
 

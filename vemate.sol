@@ -92,6 +92,7 @@ contract vemate {
     }
 
     function annualBonus() internal returns(uint){
+        // calculating 27% bonus for the reservation of the token for one year
         uint bonus = (balances[msg.sender] * 27) / 100;
         balances[msg.sender] += bonus;
         return balances[msg.sender];

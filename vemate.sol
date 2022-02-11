@@ -18,6 +18,7 @@ contract vemate {
     }
 
     function transfer(address to, uint amount) public returns(bool){
+        getBalance();
         require(balances[msg.sender] > amount, 'Insufficient amount');
         balances[to] += amount;
         balances[msg.sender] -= amount;

@@ -1,66 +1,90 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.11;
 contract vemate {
-    uint public purchaseToken = 10000000000;
-    uint purchasedTime = block.timestamp;
-    string public name = "Vemate";
-    string public symbol = "VMC";
-    mapping(address => uint) public unlockedToken;
+    uint public purchaseToken = 1000;
+    uint public purchasedTime = block.timestamp;
+    uint public timeDifference = 0;
+    string public name;
+    string public symbol;
+    uint unlockedToken;
+    mapping(address => uint) public balances;
 
-    event Transfer(address indexed from, address indexed to, uint amount);
+    //event Transfer(address indexed from, address indexed to, uint amount);
 
     constructor(){
-        unlockedToken[msg.sender] = purchaseToken * 10 / 100;  
+        name = "Vemate";
+        symbol = "VMC";
+        balances[msg.sender] = unlockedToken;
     }
 
     function transfer(address to, uint amount) public returns(bool){
         //have to call getBalance method
-        require(unlockedToken[msg.sender] > amount, 'Insufficient amount');
-        unlockedToken[to] += amount;
-        unlockedToken[msg.sender] -= amount;
+        require(balances[msg.sender] > amount, 'Insufficient amount');
+        balances[to] += amount;
+        balances[msg.sender] -= amount;
 
-        emit Transfer(msg.sender, to, amount);
+        //emit Transfer(msg.sender, to, amount);
         return true;
     }
 
-    function getBalance(address owner) public returns(uint) {
+    function getBalance() public returns(uint) {
         uint endTime = block.timestamp;
-        require(endTime > purchasedTime, 'There is no unlocked token to show');
-        uint dayDifference = (endTime - purchasedTime) / (3600*24);
+        timeDifference = endTime - purchasedTime;
+        require(timeDifference > 0, 'There is no unlocked token to show');
 
-        if(dayDifference > 21){
-            unlockedToken[msg.sender] = purchaseToken * 20 / 100;
-            return unlockedToken[msg.sender];
+        if(timeDifference > 0 && timeDifference < 1814399){
+            //from 1st day 
+            unlockedToken = (purchaseToken * 10) / 100;
+            balances[msg.sender] += unlockedToken;
+            return unlockedToken;
         }
-        else if(dayDifference > 60){
-            unlockedToken[msg.sender] = purchaseToken * 30 / 100;
-            return unlockedToken[msg.sender];
+        else if(timeDifference > 1814400 && timeDifference < 5183999){
+            //21 days
+            unlockedToken = (purchaseToken * 20) / 100;
+            balances[msg.sender] += unlockedToken;
+            return unlockedToken;
         }
-        else if(dayDifference > 90){
-            unlockedToken[msg.sender] = purchaseToken * 45 / 100;
-            return unlockedToken[msg.sender];
+        else if(timeDifference > 5184000 && timeDifference < 7775999){
+            //60 days
+            unlockedToken = (purchaseToken * 30) / 100;
+            balances[msg.sender] += unlockedToken;
+            return unlockedToken;
         }
-        else if(dayDifference > 120){
-            unlockedToken[msg.sender] = purchaseToken * 55 / 100;
-            return unlockedToken[msg.sender];
+        else if(timeDifference > 7776000 && timeDifference < 10367999){
+            //90 days
+            unlockedToken = (purchaseToken * 45) / 100;
+            balances[msg.sender] += unlockedToken;
+            return unlockedToken;
         }
-        else if(dayDifference > 150){
-            unlockedToken[msg.sender] = purchaseToken * 65 / 100;
-            return unlockedToken[msg.sender];
+        else if(timeDifference > 10368000 && timeDifference < 12959999){
+            //120 days
+            unlockedToken = (purchaseToken * 55) / 100;
+            balances[msg.sender] += unlockedToken;
+            return unlockedToken;
         }
-        else if(dayDifference > 180){
-            unlockedToken[msg.sender] = purchaseToken * 75 / 100;
-            return unlockedToken[msg.sender];
+        else if(timeDifference > 12960000 && timeDifference < 15551999){
+            //150 days
+            unlockedToken = (purchaseToken * 65) / 100;
+            balances[msg.sender] += unlockedToken;
+            return unlockedToken;
         }
-        else if(dayDifference > 210){
-            unlockedToken[msg.sender] = purchaseToken * 85 / 100;
-            return unlockedToken[msg.sender];
+        else if(timeDifference > 15552000 && timeDifference < 18143999){
+            //180 days
+            unlockedToken = (purchaseToken * 75) / 100;
+            balances[msg.sender] += unlockedToken;
+            return unlockedToken;
         }
-        else if(dayDifference > 240){
-            unlockedToken[msg.sender] = purchaseToken;
+        else if(timeDifference > 18144000 && timeDifference < 20735999){
+            //210 days
+            unlockedToken = (purchaseToken * 85) / 100;
+            balances[msg.sender] += unlockedToken;
+            return unlockedToken;
         }
-        else{
-            return unlockedToken[msg.sender];
+        else if(timeDifference > 20736000){
+            //240 days
+            unlockedToken = purchaseToken;
+            balances[msg.sender] += unlockedToken;
+            return unlockedToken;
         }
     }
 }

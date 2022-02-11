@@ -18,7 +18,11 @@ contract vemate {
     }
 
     function transfer(address to, uint amount) public returns(bool){
+<<<<<<< Updated upstream
         //have to call getBalance method
+=======
+        getBalance();
+>>>>>>> Stashed changes
         require(balances[msg.sender] > amount, 'Insufficient amount');
         balances[to] += amount;
         balances[msg.sender] -= amount;

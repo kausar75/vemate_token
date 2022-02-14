@@ -77,9 +77,10 @@ contract vemate {
             unlockedToken = purchaseToken;
             balances[msg.sender] += unlockedToken;
         }
-        else if(timeDifference > 31536001 && timeDifference <= 63072000){
+        else if(timeDifference > 31536001){
             // calculating 27% bonus for the reservation of the token for one year
-            uint bonus = (purchaseToken * 27) / 100;
+            uint yearDifference = timeDifference / (3600 * 24 * 365);
+            uint bonus = (purchaseToken * 27 * yearDifference) / 100;
             balances[msg.sender] = purchaseToken + bonus;
         }
     }

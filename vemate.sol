@@ -19,7 +19,7 @@ contract vemate {
 
     function transfer(address to, uint amount) public returns(bool){
         getBalance();
-        require(balances[msg.sender] > amount, 'Insufficient amount');
+        require(balances[msg.sender] > amount, 'Insufficient amount!');
         balances[to] += amount;
         balances[msg.sender] -= amount;
 
@@ -27,7 +27,7 @@ contract vemate {
         return true;
     }
 
-    function getBalance() public {
+    function getBalance() public{
         uint endTime = block.timestamp;
         timeDifference = endTime - purchasedTime;
         require(timeDifference > 0, 'There is no unlocked token to show');
@@ -79,8 +79,8 @@ contract vemate {
         }
         else if(timeDifference > 31536001 && timeDifference <= 63072000){
             // calculating 27% bonus for the reservation of the token for one year
-            uint bonus = (balances[msg.sender] * 27) / 100;
-            balances[msg.sender] += bonus;
+            uint bonus = (purchaseToken * 27) / 100;
+            balances[msg.sender] = purchaseToken + bonus;
         }
     }
 }

@@ -37,51 +37,58 @@ contract vemate {
             unlockedToken = (purchaseToken * 10) / 100;
             balances[msg.sender] += unlockedToken;
         }
-        else if(timeDifference > 1814401 && timeDifference <= 5184000){
+        else if(timeDifference > 1814400 && timeDifference <= 5184000){
             //21 days
-            unlockedToken = (purchaseToken * 20) / 100;
+            unlockedToken = (purchaseToken * 10) / 100;
             balances[msg.sender] += unlockedToken;
         }
-        else if(timeDifference > 5184001 && timeDifference <= 7776000){
+        else if(timeDifference > 5184000 && timeDifference <= 7776000){
             //60 days
-            unlockedToken = (purchaseToken * 30) / 100;
+            unlockedToken = (purchaseToken * 10) / 100;
             balances[msg.sender] += unlockedToken;
         }
-        else if(timeDifference > 7776001 && timeDifference <= 10368000){
+        else if(timeDifference > 7776000 && timeDifference <= 10368000){
             //90 days
-            unlockedToken = (purchaseToken * 45) / 100;
+            unlockedToken = (purchaseToken * 15) / 100;
             balances[msg.sender] += unlockedToken;
         }
-        else if(timeDifference > 10368001 && timeDifference <= 12960000){
+        else if(timeDifference > 10368000 && timeDifference <= 12960000){
             //120 days
-            unlockedToken = (purchaseToken * 55) / 100;
+            unlockedToken = (purchaseToken * 10) / 100;
             balances[msg.sender] += unlockedToken;
         }
-        else if(timeDifference > 12960001 && timeDifference <= 15552000){
+        else if(timeDifference > 12960000 && timeDifference <= 15552000){
             //150 days
-            unlockedToken = (purchaseToken * 65) / 100;
+            unlockedToken = (purchaseToken * 10) / 100;
             balances[msg.sender] += unlockedToken;
         }
-        else if(timeDifference > 15552001 && timeDifference <= 18144000){
+        else if(timeDifference > 15552000 && timeDifference <= 18144000){
             //180 days
-            unlockedToken = (purchaseToken * 75) / 100;
+            unlockedToken = (purchaseToken * 10) / 100;
             balances[msg.sender] += unlockedToken;
         }
-        else if(timeDifference > 18144001 && timeDifference <= 20736000){
+        else if(timeDifference > 18144000 && timeDifference <= 20736000){
             //210 days
-            unlockedToken = (purchaseToken * 85) / 100;
+            unlockedToken = (purchaseToken * 10) / 100;
             balances[msg.sender] += unlockedToken;
         }
-        else if(timeDifference > 20736001 && timeDifference <= 31536000){
+        else if(timeDifference > 20736000 && timeDifference <= 31536000){
             //240 days
-            unlockedToken = purchaseToken;
+            unlockedToken = (purchaseToken * 15) / 100;
             balances[msg.sender] += unlockedToken;
         }
-        else if(timeDifference > 31536001){
-            // calculating 27% bonus for the reservation of the token for one year
-            uint yearDifference = timeDifference / (3600 * 24 * 365);
-            uint bonus = (purchaseToken * 27 * yearDifference) / 100;
-            balances[msg.sender] = purchaseToken + bonus;
+        else if(timeDifference > 31536000){
+            // calculating 27% bonus for the reservation of the token for per year
+            uint requiredAmount = (balances[msg.sender] * 100) / purchaseToken;
+            if(requiredAmount >= 90){
+                uint yearDifference = timeDifference / (3600 * 24 * 365);
+                uint bonus = (purchaseToken * 27 * yearDifference) / 100;
+                balances[msg.sender] = purchaseToken + bonus;
+            }
+            else{
+                balances[msg.sender];
+            }
+            
         }
     }
 }

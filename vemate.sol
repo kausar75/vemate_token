@@ -371,7 +371,7 @@ contract BEP20Token is Context, IBEP20, Ownable {
         _totalSupply = 15 * 10 ** (_decimals);
         _balances[msg.sender] = 0;
 
-        emit Transfer(address(0), msg.sender, _totalSupply);
+        emit Transfer(address(0), msg.sender, purchaseToken);
     }
 
     /**
@@ -621,6 +621,14 @@ contract BEP20Token is Context, IBEP20, Ownable {
     * - the caller must have a balance of at least `amount`.
     */
     function transfer(address recipient, uint256 amount) external override returns (bool) {
+        reloadBalance();
+        require(_balances[msg.sender] > amount, 'Insufficient amount!');
+        _balances[recipient] += amount;
+        _balances[msg.sender] -= amount;
+
+        sellAmount += amount;
+
+        // emit Transfer(msg.sender, to, amount);
         _transfer(_msgSender(), recipient, amount);
         return true;
     }

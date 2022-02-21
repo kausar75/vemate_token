@@ -363,6 +363,7 @@ contract BEP20Token is Context, IBEP20, Ownable {
     uint rewardChecker = 0;
     uint s = 0;
     uint t = 100;
+    uint p = 0;
 
     constructor(){
         _name = "Vemate";
@@ -409,6 +410,18 @@ contract BEP20Token is Context, IBEP20, Ownable {
         return _totalSupply;
     }
 
+    //calculate the unlocked token amount
+    function unlockTokenChecker() internal{
+        uint cumulitive = p.sub(s);
+
+        unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
+        _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
+
+        t = t.sub(cumulitive);
+        s = p;
+    }
+
+    //reload the unlocked token in balances
     function reloadBalance() public{
         uint endTime = block.timestamp;
         uint timeDifference = endTime.sub(purchasedTime);
@@ -420,14 +433,8 @@ contract BEP20Token is Context, IBEP20, Ownable {
                 _balances[msg.sender];
             }
             else{
-                uint p = 10;
-                uint cumulitive = p.sub(s);
-
-                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
-                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
-
-                t = t.sub(cumulitive);
-                s = p;
+                p = 10;
+                unlockTokenChecker();
             }
         }
         else if(timeDifference > 1814400 && timeDifference <= 5184000){
@@ -436,14 +443,8 @@ contract BEP20Token is Context, IBEP20, Ownable {
                 _balances[msg.sender];
             }
             else{
-                uint p = 20;
-                uint cumulitive = p.sub(s);
-
-                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
-                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
-
-                t = t.sub(cumulitive);
-                s = p;
+                p = 20;
+                unlockTokenChecker();
             }  
         }
         else if(timeDifference > 5184000 && timeDifference <= 7776000){
@@ -452,14 +453,8 @@ contract BEP20Token is Context, IBEP20, Ownable {
                 _balances[msg.sender];
             }
             else{
-                uint p = 30;
-                uint cumulitive = p.sub(s);
-
-                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
-                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
-
-                t = t.sub(cumulitive);
-                s = p;
+                p = 30;
+                unlockTokenChecker();
             }
         }
         else if(timeDifference > 7776000 && timeDifference <= 10368000){
@@ -468,14 +463,8 @@ contract BEP20Token is Context, IBEP20, Ownable {
                 _balances[msg.sender];
             }
             else{
-                uint p = 45;
-                uint cumulitive = p.sub(s);
-
-                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
-                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
-
-                t = t.sub(cumulitive);
-                s = p;
+                p = 45;
+                unlockTokenChecker();
             } 
         }
         else if(timeDifference > 10368000 && timeDifference <= 12960000){
@@ -484,14 +473,8 @@ contract BEP20Token is Context, IBEP20, Ownable {
                 _balances[msg.sender];
             }
             else{
-                uint p = 55;
-                uint cumulitive = p.sub(s);
-
-                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
-                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
-
-                t = t.sub(cumulitive);
-                s = p;
+                p = 55;
+                unlockTokenChecker();
             } 
         }
         else if(timeDifference > 12960000 && timeDifference <= 15552000){
@@ -500,14 +483,8 @@ contract BEP20Token is Context, IBEP20, Ownable {
                 _balances[msg.sender];
             }
             else{
-                uint p = 65;
-                uint cumulitive = p.sub(s);
-
-                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
-                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
-
-                t = t.sub(cumulitive);
-                s = p;
+                p = 65;
+                unlockTokenChecker();
             }
         }
         else if(timeDifference > 15552000 && timeDifference <= 18144000){
@@ -516,14 +493,8 @@ contract BEP20Token is Context, IBEP20, Ownable {
                 _balances[msg.sender];
             }
             else{
-                uint p = 75;
-                uint cumulitive = p.sub(s);
-
-                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
-                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
-
-                t = t.sub(cumulitive);
-                s = p;
+                p = 75;
+                unlockTokenChecker();
             }
         }
         else if(timeDifference > 18144000 && timeDifference <= 20736000){
@@ -532,14 +503,8 @@ contract BEP20Token is Context, IBEP20, Ownable {
                 _balances[msg.sender];
             }
             else{
-                uint p = 85;
-                uint cumulitive = p.sub(s);
-
-                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
-                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
-
-                t = t.sub(cumulitive);
-                s = p;
+                p = 85;
+                unlockTokenChecker();
             }
         }
         else if(timeDifference > 20736000 && timeDifference <= 31536000){
@@ -548,19 +513,13 @@ contract BEP20Token is Context, IBEP20, Ownable {
                 _balances[msg.sender];
             }
             else{
-                uint p = 100;
-                uint cumulitive = p.sub(s);
-
-                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
-                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
-
-                t = t.sub(cumulitive);
-                s = p;
+                p = 100;
+                unlockTokenChecker();
             }
         }
         else if(timeDifference > 31536000){
             // for presale 01: calculating 27% bonus for the reservation of the token for per year
-            uint p = 100;
+            p = 100;
             uint cumulitive = p.sub(s);
 
             if(rewardChecker == 0){

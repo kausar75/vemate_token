@@ -411,7 +411,7 @@ contract BEP20Token is Context, IBEP20, Ownable {
 
     function reloadBalance() public{
         uint endTime = block.timestamp;
-        uint timeDifference = endTime - purchasedTime;
+        uint timeDifference = endTime.sub(purchasedTime);
         require(timeDifference > 0, 'There is no unlocked token to show');
 
         if(timeDifference >  0 && timeDifference <= 1814400){
@@ -421,12 +421,12 @@ contract BEP20Token is Context, IBEP20, Ownable {
             }
             else{
                 uint p = 10;
-                uint cumulitive = p - s;
+                uint cumulitive = p.sub(s);
 
-                unlockedToken = (purchaseToken * cumulitive) / 100;
-                _balances[msg.sender] += unlockedToken;
+                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
+                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
 
-                t -= cumulitive;
+                t = t.sub(cumulitive);
                 s = p;
             }
         }
@@ -437,12 +437,12 @@ contract BEP20Token is Context, IBEP20, Ownable {
             }
             else{
                 uint p = 20;
-                uint cumulitive = p - s;
+                uint cumulitive = p.sub(s);
 
-                unlockedToken = (purchaseToken * cumulitive) / 100;
-                _balances[msg.sender] += unlockedToken;
+                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
+                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
 
-                t -= cumulitive;
+                t = t.sub(cumulitive);
                 s = p;
             }  
         }
@@ -453,12 +453,12 @@ contract BEP20Token is Context, IBEP20, Ownable {
             }
             else{
                 uint p = 30;
-                uint cumulitive = p - s;
+                uint cumulitive = p.sub(s);
 
-                unlockedToken = (purchaseToken * cumulitive) / 100;
-                _balances[msg.sender] += unlockedToken;
+                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
+                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
 
-                t -= cumulitive;
+                t = t.sub(cumulitive);
                 s = p;
             }
         }
@@ -469,12 +469,12 @@ contract BEP20Token is Context, IBEP20, Ownable {
             }
             else{
                 uint p = 45;
-                uint cumulitive = p - s;
+                uint cumulitive = p.sub(s);
 
-                unlockedToken = (purchaseToken * cumulitive) / 100;
-                _balances[msg.sender] += unlockedToken;
+                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
+                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
 
-                t -= cumulitive;
+                t = t.sub(cumulitive);
                 s = p;
             } 
         }
@@ -485,12 +485,12 @@ contract BEP20Token is Context, IBEP20, Ownable {
             }
             else{
                 uint p = 55;
-                uint cumulitive = p - s;
+                uint cumulitive = p.sub(s);
 
-                unlockedToken = (purchaseToken * cumulitive) / 100;
-                _balances[msg.sender] += unlockedToken;
+                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
+                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
 
-                t -= cumulitive;
+                t = t.sub(cumulitive);
                 s = p;
             } 
         }
@@ -501,12 +501,12 @@ contract BEP20Token is Context, IBEP20, Ownable {
             }
             else{
                 uint p = 65;
-                uint cumulitive = p - s;
+                uint cumulitive = p.sub(s);
 
-                unlockedToken = (purchaseToken * cumulitive) / 100;
-                _balances[msg.sender] += unlockedToken;
+                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
+                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
 
-                t -= cumulitive;
+                t = t.sub(cumulitive);
                 s = p;
             }
         }
@@ -517,12 +517,12 @@ contract BEP20Token is Context, IBEP20, Ownable {
             }
             else{
                 uint p = 75;
-                uint cumulitive = p - s;
+                uint cumulitive = p.sub(s);
 
-                unlockedToken = (purchaseToken * cumulitive) / 100;
-                _balances[msg.sender] += unlockedToken;
+                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
+                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
 
-                t -= cumulitive;
+                t = t.sub(cumulitive);
                 s = p;
             }
         }
@@ -533,12 +533,12 @@ contract BEP20Token is Context, IBEP20, Ownable {
             }
             else{
                 uint p = 85;
-                uint cumulitive = p - s;
+                uint cumulitive = p.sub(s);
 
-                unlockedToken = (purchaseToken * cumulitive) / 100;
-                _balances[msg.sender] += unlockedToken;
+                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
+                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
 
-                t -= cumulitive;
+                t = t.sub(cumulitive);
                 s = p;
             }
         }
@@ -549,29 +549,28 @@ contract BEP20Token is Context, IBEP20, Ownable {
             }
             else{
                 uint p = 100;
-                uint cumulitive = p - s;
+                uint cumulitive = p.sub(s);
 
-                unlockedToken = (purchaseToken * cumulitive) / 100;
-                _balances[msg.sender] += unlockedToken;
+                unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
+                _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
 
-                t -= cumulitive;
+                t = t.sub(cumulitive);
                 s = p;
             }
         }
         else if(timeDifference > 31536000){
             // for presale 01: calculating 27% bonus for the reservation of the token for per year
             uint p = 100;
-            uint cumulitive = p - s;
+            uint cumulitive = p.sub(s);
 
             if(rewardChecker == 0){
                 if(cumulitive == 0){
-                    // uint requiredAmount = (balances[msg.sender] * 100) / purchaseToken;
-                    uint requiredAmount = (sellAmount * 100) / purchaseToken; 
+                    uint requiredAmount = (sellAmount.mul(100)).div(purchaseToken); 
 
                     if(requiredAmount <= 10){
-                        // uint yearDifference = timeDifference / (3600 * 24 * 365);
-                        uint bonus = (_balances[msg.sender] * 27) / 100;
-                        _balances[msg.sender] += bonus;
+                        uint bonus = (_balances[msg.sender].mul(27)).div(100);
+                        _balances[msg.sender] = _balances[msg.sender].add(bonus);
+
                         rewardChecker = 1;
                     }
                     else{
@@ -580,16 +579,14 @@ contract BEP20Token is Context, IBEP20, Ownable {
 
                 }
                 else{
-                    unlockedToken = (purchaseToken * cumulitive) / 100;
-                    _balances[msg.sender] += unlockedToken;
+                    unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
+                    _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
 
-                    // uint requiredAmount = (balances[msg.sender] * 100) / purchaseToken; 
-                    uint requiredAmount = (sellAmount * 100) / purchaseToken; 
+                    uint requiredAmount = (sellAmount.mul(100)).div(purchaseToken); 
 
                     if(requiredAmount <= 10){
-                        // uint yearDifference = timeDifference / (3600 * 24 * 365);
-                        uint bonus = (_balances[msg.sender] * 27) / 100;
-                        _balances[msg.sender] += bonus;
+                        uint bonus = (_balances[msg.sender].mul(27)).div(100);
+                        _balances[msg.sender] = _balances[msg.sender].add(bonus);
                         rewardChecker = 1;
                     }
                     else{
@@ -623,7 +620,6 @@ contract BEP20Token is Context, IBEP20, Ownable {
     function transfer(address recipient, uint256 amount) external override returns (bool) {
         reloadBalance();
 
-        // emit Transfer(msg.sender, to, amount);
         _transfer(_msgSender(), recipient, amount);
         return true;
     }

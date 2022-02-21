@@ -355,7 +355,7 @@ contract BEP20Token is Context, IBEP20, Ownable {
     string private _symbol;
     string private _name;
 
-    uint private sellAmount;
+    uint private sellAmount  = 0;
     uint private unlockedToken = 0;
     uint private purchaseToken = 1000;
     uint private purchasedTime = block.timestamp;
@@ -622,11 +622,6 @@ contract BEP20Token is Context, IBEP20, Ownable {
     */
     function transfer(address recipient, uint256 amount) external override returns (bool) {
         reloadBalance();
-        require(_balances[msg.sender] > amount, 'Insufficient amount!');
-        _balances[recipient] += amount;
-        _balances[msg.sender] -= amount;
-
-        sellAmount += amount;
 
         // emit Transfer(msg.sender, to, amount);
         _transfer(_msgSender(), recipient, amount);
@@ -736,10 +731,12 @@ contract BEP20Token is Context, IBEP20, Ownable {
     function _transfer(address sender, address recipient, uint256 amount) internal {
         require(sender != address(0), "BEP20: transfer from the zero address");
         require(recipient != address(0), "BEP20: transfer to the zero address");
+        require(_balances[sender] > amount, "Insufficient amount!");
 
         _balances[sender] = _balances[sender].sub(amount, "BEP20: transfer amount exceeds balance");
         _balances[recipient] = _balances[recipient].add(amount);
         emit Transfer(sender, recipient, amount);
+        sellAmount += amount;
     }
 
     /** @dev Creates `amount` tokens and assigns them to `account`, increasing

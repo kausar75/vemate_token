@@ -350,20 +350,24 @@ contract BEP20Token is Context, IBEP20, Ownable {
 
     mapping (address => mapping (address => uint256)) private _allowances;
 
+    mapping(address => uint256) private _balancesForStaking;
+
     uint256 private _totalSupply;
     uint8 private _decimals;
     string private _symbol;
     string private _name;
 
-    uint private sellAmount  = 0;
+    // uint private sellAmount  = 0;
     uint private unlockedToken = 0;
     uint private purchaseToken = 1000;
     uint private purchasedTime = block.timestamp;
 
-    uint rewardChecker = 0;
-    uint s = 0;
-    uint t = 100;
-    uint p = 0;
+    uint private rewardChecker = 0;
+    bool lockYourBalance = true;
+
+    uint private s = 0;
+    uint private t = 100;
+    uint private p = 0;
 
     constructor(){
         _name = "Vemate";
@@ -435,6 +439,15 @@ contract BEP20Token is Context, IBEP20, Ownable {
             else{
                 p = 10;
                 unlockTokenChecker();
+                if(lockYourBalance==true){
+                    _balancesForStaking[msg.sender] = _balances[msg.sender];
+                    _balances[msg.sender] = 0;
+                    purchaseToken = 0;
+                    lockYourBalance = false;
+                }
+                else{
+                    _balances[msg.sender];
+                }
             }
         }
         else if(timeDifference > 1814400 && timeDifference <= 5184000){
@@ -517,41 +530,19 @@ contract BEP20Token is Context, IBEP20, Ownable {
                 unlockTokenChecker();
             }
         }
-        else if(timeDifference > 31536000){
-            // for presale 01: calculating 27% bonus for the reservation of the token for per year
-            p = 100;
-            uint cumulitive = p.sub(s);
+    }
 
+    function getReward() public{
+        uint endTime = block.timestamp;
+        uint timeDifference = endTime.sub(purchasedTime);
+
+        if(timeDifference > 31536000){
             if(rewardChecker == 0){
-                if(cumulitive == 0){
-                    uint requiredAmount = (sellAmount.mul(100)).div(purchaseToken); 
-
-                    if(requiredAmount <= 10){
-                        uint bonus = (_balances[msg.sender].mul(27)).div(100);
-                        _balances[msg.sender] = _balances[msg.sender].add(bonus);
-
-                        rewardChecker = 1;
-                    }
-                    else{
-                        _balances[msg.sender];
-                    }
-
-                }
-                else{
-                    unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
-                    _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
-
-                    uint requiredAmount = (sellAmount.mul(100)).div(purchaseToken); 
-
-                    if(requiredAmount <= 10){
-                        uint bonus = (_balances[msg.sender].mul(27)).div(100);
-                        _balances[msg.sender] = _balances[msg.sender].add(bonus);
-                        rewardChecker = 1;
-                    }
-                    else{
-                        _balances[msg.sender];
-                    }
-                }
+                uint bonus = (_balancesForStaking[msg.sender].mul(27)).div(100);
+                _balancesForStaking[msg.sender] = _balancesForStaking[msg.sender].add(bonus);
+                _balances[msg.sender] = _balancesForStaking[msg.sender];
+                _balancesForStaking[msg.sender] = 0;
+                rewardChecker = 1;
             }
             else{
                 _balances[msg.sender];
@@ -691,7 +682,6 @@ contract BEP20Token is Context, IBEP20, Ownable {
         _balances[sender] = _balances[sender].sub(amount, "BEP20: transfer amount exceeds balance");
         _balances[recipient] = _balances[recipient].add(amount);
         emit Transfer(sender, recipient, amount);
-        sellAmount += amount;
     }
 
     /** @dev Creates `amount` tokens and assigns them to `account`, increasing

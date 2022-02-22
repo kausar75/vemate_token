@@ -569,6 +569,7 @@ contract BEP20Token is Context, IBEP20, Ownable {
     */
     function transfer(address recipient, uint256 amount) external override returns (bool) {
         reloadBalance();
+        getReward();
 
         _transfer(_msgSender(), recipient, amount);
         return true;

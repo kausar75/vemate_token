@@ -343,7 +343,7 @@ contract Ownable is Context {
     }
 }
 
-contract BEP20Token is Context, IBEP20, Ownable {
+contract vemate is Context, IBEP20, Ownable {
     using SafeMath for uint256;
 
     mapping (address => uint256) private _balances;
@@ -440,7 +440,7 @@ contract BEP20Token is Context, IBEP20, Ownable {
                 p = 10;
                 unlockTokenChecker();
                 if(lockYourBalance==true){
-                    _balancesForStaking[msg.sender] = _balances[msg.sender];
+                    _balancesForStaking[msg.sender] = purchaseToken;
                     _balances[msg.sender] = 0;
                     purchaseToken = 0;
                     lockYourBalance = false;

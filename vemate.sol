@@ -357,24 +357,24 @@ contract vemate is Context, IBEP20, Ownable {
     string private _symbol;
     string private _name;
 
-    // uint private sellAmount  = 0;
     uint private unlockedToken = 0;
     uint private purchaseToken = 1000;
     uint private purchasedTime = block.timestamp;
 
     uint private rewardChecker = 0;
-    bool lockYourBalance = true;
+    bool lockYourBalance;
 
     uint private s = 0;
     uint private t = 100;
     uint private p = 0;
 
-    constructor(){
+    constructor(bool _lockYourBalance){
         _name = "Vemate";
         _symbol = "VMC";
         _decimals = 7;
         _totalSupply = 15 * 10 ** (_decimals);
         _balances[msg.sender] = 0;
+        lockYourBalance = _lockYourBalance;
 
         emit Transfer(address(0), msg.sender, purchaseToken);
     }
@@ -537,12 +537,17 @@ contract vemate is Context, IBEP20, Ownable {
         uint timeDifference = endTime.sub(purchasedTime);
 
         if(timeDifference > 31536000){
-            if(rewardChecker == 0){
-                uint bonus = (_balancesForStaking[msg.sender].mul(27)).div(100);
-                _balancesForStaking[msg.sender] = _balancesForStaking[msg.sender].add(bonus);
-                _balances[msg.sender] = _balancesForStaking[msg.sender];
-                _balancesForStaking[msg.sender] = 0;
-                rewardChecker = 1;
+            if(_balancesForStaking[msg.sender] > 0){
+                if(rewardChecker == 0){
+                    uint bonus = (_balancesForStaking[msg.sender].mul(27)).div(100);
+                    _balancesForStaking[msg.sender] = _balancesForStaking[msg.sender].add(bonus);
+                    _balances[msg.sender] = _balancesForStaking[msg.sender];
+                    _balancesForStaking[msg.sender] = 0;
+                    rewardChecker = 1;
+                }
+                else{
+                    _balances[msg.sender];
+                }
             }
             else{
                 _balances[msg.sender];
@@ -555,7 +560,6 @@ contract vemate is Context, IBEP20, Ownable {
     * @dev See {BEP20-balanceOf}.
     */
     function balanceOf(address account) external override view returns(uint256){
-        // relaodBalance();
         return _balances[account];
     }
 

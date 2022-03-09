@@ -343,7 +343,7 @@ contract Ownable is Context {
     }
 }
 
-contract vemate is Context, IBEP20, Ownable {
+contract Vemate is Context, IBEP20, Ownable {
     using SafeMath for uint256;
 
     mapping (address => uint256) private _balances;
@@ -358,25 +358,24 @@ contract vemate is Context, IBEP20, Ownable {
     string private _name;
 
     uint private unlockedToken = 0;
-    uint private purchaseToken = 1000;
+    mapping(address => uint256) private purchaseToken;
     uint private purchasedTime = block.timestamp;
 
     uint private rewardChecker = 0;
-    bool lockYourBalance;
+    bool lockYourBalance = false;
 
     uint private s = 0;
     uint private t = 100;
     uint private p = 0;
 
-    constructor(bool _lockYourBalance){
+    constructor(){
         _name = "Vemate";
         _symbol = "VMC";
-        _decimals = 7;
+        _decimals = 18;
         _totalSupply = 15 * 10 ** (_decimals);
-        _balances[msg.sender] = 0;
-        lockYourBalance = _lockYourBalance;
+        _balances[msg.sender] = _totalSupply;
 
-        emit Transfer(address(0), msg.sender, purchaseToken);
+        emit Transfer(address(0), msg.sender, _totalSupply);
     }
 
     /**
@@ -414,19 +413,27 @@ contract vemate is Context, IBEP20, Ownable {
         return _totalSupply;
     }
 
+    modifier onlyTokenHolder(){
+        require(msg.sender != 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4, 'You are owner');
+        _;
+    }
+
     //calculate the unlocked token amount
-    function unlockTokenChecker() internal{
+    function unlockTokenChecker() internal onlyTokenHolder{
         uint cumulitive = p.sub(s);
 
-        unlockedToken = (purchaseToken.mul(cumulitive)).div(100);
+        //as the balances was adding the unlocked token amount with purchased token
+        //that's why I was subtracting the purchase amount
+        _balances[msg.sender] = _balances[msg.sender].sub(purchaseToken[msg.sender]);
+
+        unlockedToken = (purchaseToken[msg.sender].mul(cumulitive)).div(100);
         _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
 
         t = t.sub(cumulitive);
         s = p;
     }
-
-    //reload the unlocked token in balances
-    function reloadBalance() public{
+    
+    function reloadBalance() public onlyTokenHolder{
         uint endTime = block.timestamp;
         uint timeDifference = endTime.sub(purchasedTime);
         require(timeDifference > 0, 'There is no unlocked token to show');
@@ -440,9 +447,9 @@ contract vemate is Context, IBEP20, Ownable {
                 p = 10;
                 unlockTokenChecker();
                 if(lockYourBalance==true){
-                    _balancesForStaking[msg.sender] = purchaseToken;
+                    _balancesForStaking[msg.sender] = purchaseToken[msg.sender];
                     _balances[msg.sender] = 0;
-                    purchaseToken = 0;
+                    purchaseToken[msg.sender] = 0;
                     lockYourBalance = false;
                 }
                 else{
@@ -560,7 +567,12 @@ contract vemate is Context, IBEP20, Ownable {
     * @dev See {BEP20-balanceOf}.
     */
     function balanceOf(address account) external override view returns(uint256){
-        return _balances[account];
+        if(msg.sender == 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4){
+            return _balances[account];
+
+        }else{
+            return _balances[account];
+        }
     }
 
     /**
@@ -572,11 +584,19 @@ contract vemate is Context, IBEP20, Ownable {
     * - the caller must have a balance of at least `amount`.
     */
     function transfer(address recipient, uint256 amount) external override returns (bool) {
-        reloadBalance();
-        getReward();
+        if(msg.sender == 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4){
+            //owner of the vemate
+            _transfer(_msgSender(), recipient, amount);
+            purchaseToken[recipient] = amount;
+            return true;
+        }else{
+            //for token holder
+            reloadBalance();
+            getReward();
 
-        _transfer(_msgSender(), recipient, amount);
-        return true;
+            _transfer(_msgSender(), recipient, amount);
+            return true;
+        }
     }
 
     /**

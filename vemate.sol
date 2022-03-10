@@ -539,7 +539,7 @@ contract Vemate is Context, IBEP20, Ownable {
         }
     }
 
-    function getReward() public{
+    function getReward() public onlyTokenHolder{
         uint endTime = block.timestamp;
         uint timeDifference = endTime.sub(purchasedTime);
 

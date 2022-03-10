@@ -593,9 +593,9 @@ contract Vemate is Context, IBEP20, Ownable {
         if(msg.sender == 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4){
             //owner of the vemate
             _transfer(_msgSender(), recipient, amount);
-            t[recipient] =100;
-            s[recipient]=0;
-            p[recipient]=0;
+            t[recipient] = 100;
+            s[recipient] = 0;
+            p[recipient] = 0;
             purchaseToken[recipient] = amount;
             purchasedTime[recipient] = block.timestamp;
             return true;
@@ -604,8 +604,18 @@ contract Vemate is Context, IBEP20, Ownable {
             reloadBalance();
             getReward();
 
+            //calculate tax fee
+            uint256 taxFee = amount.mul(5).div(100);
+
+            // transfer the amount 
             _transfer(_msgSender(), recipient, amount);
-            //have to add tax
+            
+            // reduce the taxFee from the sender
+            _balances[_msgSender()] = _balances[_msgSender()].sub(taxFee);
+
+            // add the taxFee to the owner of the Vemate
+            _balances[0x5B38Da6a701c568545dCfcB03FcB875f56beddC4] = _balances[0x5B38Da6a701c568545dCfcB03FcB875f56beddC4].add(taxFee);
+
             return true;
         }
     }
@@ -641,7 +651,7 @@ contract Vemate is Context, IBEP20, Ownable {
     * - the caller must have allowance for `sender`'s tokens of at least
     * `amount`.
     */
-    function transferFrom(address sender, address recipient, uint256 amount) external override returns (bool) {
+    function transferFrom(address sender, address recipient, uint256 amount) external override onlyTokenHolder returns (bool){
         _transfer(sender, recipient, amount);
         _approve(sender, _msgSender(), _allowances[sender][_msgSender()].sub(amount, "BEP20: transfer amount exceeds allowance"));
         return true;

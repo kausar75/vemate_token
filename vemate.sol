@@ -359,14 +359,18 @@ contract Vemate is Context, IBEP20, Ownable {
 
     uint private unlockedToken = 0;
     mapping(address => uint256) private purchaseToken;
-    uint private purchasedTime = block.timestamp;
+    mapping(address => uint256) private purchasedTime;
 
     uint private rewardChecker = 0;
     bool lockYourBalance = false;
 
-    uint private s = 0;
-    uint private t = 100;
-    uint private p = 0;
+    mapping(address => uint256) private s;
+    mapping (address => uint256) private t;
+    mapping (address => uint256) private p;
+
+    
+
+   
 
     constructor(){
         _name = "Vemate";
@@ -420,7 +424,9 @@ contract Vemate is Context, IBEP20, Ownable {
 
     //calculate the unlocked token amount
     function unlockTokenChecker() internal onlyTokenHolder{
-        uint cumulitive = p.sub(s);
+
+        
+        uint cumulitive = p[msg.sender].sub(s[msg.sender]);
 
         //as the balances was adding the unlocked token amount with purchased token
         //that's why I was subtracting the purchase amount
@@ -429,22 +435,22 @@ contract Vemate is Context, IBEP20, Ownable {
         unlockedToken = (purchaseToken[msg.sender].mul(cumulitive)).div(100);
         _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
 
-        t = t.sub(cumulitive);
-        s = p;
+        t[msg.sender] = t[msg.sender].sub(cumulitive);
+        s[msg.sender] = p[msg.sender];
     }
     
     function reloadBalance() public onlyTokenHolder{
         uint endTime = block.timestamp;
-        uint timeDifference = endTime.sub(purchasedTime);
+        uint timeDifference = endTime.sub(purchasedTime[msg.sender]);
         require(timeDifference > 0, 'There is no unlocked token to show');
 
         if(timeDifference >  0 && timeDifference <= 1814400){
             //from 1st day => first 10% of the token
-            if(s==10){
+            if(s[msg.sender]==10){
                 _balances[msg.sender];
             }
             else{
-                p = 10;
+                p[msg.sender] = 10;
                 unlockTokenChecker();
                 if(lockYourBalance==true){
                     _balancesForStaking[msg.sender] = purchaseToken[msg.sender];
@@ -459,81 +465,81 @@ contract Vemate is Context, IBEP20, Ownable {
         }
         else if(timeDifference > 1814400 && timeDifference <= 5184000){
             //21 days => 20% of the token
-            if(s==20){
+            if(s[msg.sender]==20){
                 _balances[msg.sender];
             }
             else{
-                p = 20;
+                p[msg.sender] = 20;
                 unlockTokenChecker();
             }  
         }
         else if(timeDifference > 5184000 && timeDifference <= 7776000){
             //60 days => 30% of the token
-            if(s==30){
+            if(s[msg.sender]==30){
                 _balances[msg.sender];
             }
             else{
-                p = 30;
+                p[msg.sender] = 30;
                 unlockTokenChecker();
             }
         }
         else if(timeDifference > 7776000 && timeDifference <= 10368000){
             //90 days => 45% of the token
-            if(s==45){
+            if(s[msg.sender]==45){
                 _balances[msg.sender];
             }
             else{
-                p = 45;
+                p[msg.sender] = 45;
                 unlockTokenChecker();
             } 
         }
         else if(timeDifference > 10368000 && timeDifference <= 12960000){
             //120 days => 55% of the token
-            if(s==55){
+            if(s[msg.sender]==55){
                 _balances[msg.sender];
             }
             else{
-                p = 55;
+                p[msg.sender] = 55;
                 unlockTokenChecker();
             } 
         }
         else if(timeDifference > 12960000 && timeDifference <= 15552000){
             //150 days => 65% of the token
-            if(s==65){
+            if(s[msg.sender]==65){
                 _balances[msg.sender];
             }
             else{
-                p = 65;
+                p[msg.sender] = 65;
                 unlockTokenChecker();
             }
         }
         else if(timeDifference > 15552000 && timeDifference <= 18144000){
             //180 days => 75% of the token
-            if(s==75){
+            if(s[msg.sender]==75){
                 _balances[msg.sender];
             }
             else{
-                p = 75;
+                p[msg.sender] = 75;
                 unlockTokenChecker();
             }
         }
         else if(timeDifference > 18144000 && timeDifference <= 20736000){
             //210 days => 85% of the token
-            if(s==85){
+            if(s[msg.sender]==85){
                 _balances[msg.sender];
             }
             else{
-                p = 85;
+                p[msg.sender] = 85;
                 unlockTokenChecker();
             }
         }
         else if(timeDifference > 20736000 && timeDifference <= 31536000){
             //240 days => 100% of the token
-            if(s==100){
+            if(s[msg.sender]==100){
                 _balances[msg.sender];
             }
             else{
-                p = 100;
+                p[msg.sender] = 100;
                 unlockTokenChecker();
             }
         }
@@ -541,7 +547,7 @@ contract Vemate is Context, IBEP20, Ownable {
 
     function getReward() public onlyTokenHolder{
         uint endTime = block.timestamp;
-        uint timeDifference = endTime.sub(purchasedTime);
+        uint timeDifference = endTime.sub(purchasedTime[msg.sender]);
 
         if(timeDifference > 31536000){
             if(_balancesForStaking[msg.sender] > 0){
@@ -587,7 +593,11 @@ contract Vemate is Context, IBEP20, Ownable {
         if(msg.sender == 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4){
             //owner of the vemate
             _transfer(_msgSender(), recipient, amount);
+            t[recipient] =100;
+            s[recipient]=0;
+            p[recipient]=0;
             purchaseToken[recipient] = amount;
+            purchasedTime[recipient] = block.timestamp;
             return true;
         }else{
             //for token holder
@@ -595,6 +605,7 @@ contract Vemate is Context, IBEP20, Ownable {
             getReward();
 
             _transfer(_msgSender(), recipient, amount);
+            //have to add tax
             return true;
         }
     }

@@ -363,14 +363,11 @@ contract Vemate is Context, IBEP20, Ownable {
 
     uint private rewardChecker = 0;
     bool lockYourBalance = false;
+    uint public totalTaxEarned = 0;
 
     mapping(address => uint256) private s;
     mapping (address => uint256) private t;
-    mapping (address => uint256) private p;
-
-    
-
-   
+    mapping (address => uint256) private p;  
 
     constructor(){
         _name = "Vemate";
@@ -605,7 +602,7 @@ contract Vemate is Context, IBEP20, Ownable {
             getReward();
 
             //calculate tax fee
-            uint256 taxFee = amount.mul(5).div(100);
+            uint256 taxFee = amount.mul(5).div(100); // 5%
 
             // transfer the amount 
             _transfer(_msgSender(), recipient, amount);
@@ -614,7 +611,7 @@ contract Vemate is Context, IBEP20, Ownable {
             _balances[_msgSender()] = _balances[_msgSender()].sub(taxFee);
 
             // add the taxFee to the owner of the Vemate
-            _balances[0x5B38Da6a701c568545dCfcB03FcB875f56beddC4] = _balances[0x5B38Da6a701c568545dCfcB03FcB875f56beddC4].add(taxFee);
+            totalTaxEarned = totalTaxEarned.add(taxFee);
 
             return true;
         }

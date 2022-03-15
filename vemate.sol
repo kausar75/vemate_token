@@ -234,7 +234,6 @@ library SafeMath{
         require(b > 0, errorMessage);
         uint256 c = a / b;
     // assert(a == b * c + a % b); // There is no case in which this doesn't hold
-
         return c;
     }
 
@@ -570,12 +569,7 @@ contract Vemate is Context, IBEP20, Ownable {
     * @dev See {BEP20-balanceOf}.
     */
     function balanceOf(address account) external override view returns(uint256){
-        if(msg.sender == 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4){
-            return _balances[account];
-
-        }else{
-            return _balances[account];
-        }
+        return _balances[account];
     }
 
     /**
@@ -589,12 +583,29 @@ contract Vemate is Context, IBEP20, Ownable {
     function transfer(address recipient, uint256 amount) external override returns (bool) {
         if(msg.sender == 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4){
             //owner of the vemate
-            _transfer(_msgSender(), recipient, amount);
+            // _transfer(_msgSender(), recipient, amount);
             t[recipient] = 100;
             s[recipient] = 0;
             p[recipient] = 0;
+            // purchaseToken[recipient] = amount;
+            
+            //calculate tax fee
+            uint256 taxFee = amount.mul(5).div(100);
+
+            // reduce the taxes from the amount purchased
+            amount = amount.sub(taxFee);
+
+            // transfer the amount
+            _transfer(_msgSender(), recipient, amount);
+
+            // assign the amount as purchased token
             purchaseToken[recipient] = amount;
+
+            // save the time as purchased time
             purchasedTime[recipient] = block.timestamp;
+
+            // save the taxFee
+            totalTaxEarned = totalTaxEarned.add(taxFee);
             return true;
         }else{
             //for token holder
@@ -602,16 +613,16 @@ contract Vemate is Context, IBEP20, Ownable {
             getReward();
 
             //calculate tax fee
-            uint256 taxFee = amount.mul(5).div(100); // 5%
+            // uint256 taxFee = amount.mul(5).div(100); // 5%
 
             // transfer the amount 
             _transfer(_msgSender(), recipient, amount);
             
             // reduce the taxFee from the sender
-            _balances[_msgSender()] = _balances[_msgSender()].sub(taxFee);
+            // _balances[_msgSender()] = _balances[_msgSender()].sub(taxFee);
 
             // add the taxFee to the owner of the Vemate
-            totalTaxEarned = totalTaxEarned.add(taxFee);
+            // totalTaxEarned = totalTaxEarned.add(taxFee);
 
             return true;
         }

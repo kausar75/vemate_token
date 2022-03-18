@@ -371,7 +371,7 @@ contract Vemate is Context, IBEP20, Ownable {
     constructor(){
         _name = "Vemate";
         _symbol = "VMC";
-        _decimals = 18;
+        _decimals = 7;
         _totalSupply = 15 * 10 ** (_decimals);
         _balances[msg.sender] = _totalSupply;
 

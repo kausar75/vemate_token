@@ -644,25 +644,11 @@ contract Vemate is Context, IBEP20, Ownable {
             t[recipient] = 100;
             s[recipient] = 0;
             p[recipient] = 0;
-            // purchaseToken[recipient] = amount;
-            
-            //calculate tax fee
-            uint256 taxFee = amount.mul(5).div(100);
 
-            // reduce the taxes from the amount purchased
-            amount = amount.sub(taxFee);
-
-            // transfer the amount
             _transfer(_msgSender(), recipient, amount);
 
-            // assign the amount as purchased token
             purchaseToken[recipient] = amount;
-
-            // save the time as purchased time
             purchasedTime[recipient] = block.timestamp;
-
-            // save the taxFee
-            totalTaxEarned = totalTaxEarned.add(taxFee);
             return true;
         }else{
             //for token holder

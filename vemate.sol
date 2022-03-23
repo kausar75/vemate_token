@@ -351,8 +351,8 @@ contract Vemate is Context, IBEP20, Ownable {
 
     mapping(address => uint256) private _balancesForStaking;
 
-    uint256 private _totalSupply;
     uint8 private _decimals;
+    uint256 private _totalSupply;
     string private _symbol;
     string private _name;
 
@@ -362,7 +362,6 @@ contract Vemate is Context, IBEP20, Ownable {
 
     uint private rewardChecker = 0;
     bool lockYourBalance = false;
-    uint public totalTaxEarned = 0;
 
     mapping(address => uint256) private s;
     mapping (address => uint256) private t;
@@ -420,7 +419,6 @@ contract Vemate is Context, IBEP20, Ownable {
 
     //calculate the unlocked token amount
     function unlockTokenChecker() internal onlyTokenHolder{
-
         
         uint cumulitive = p[msg.sender].sub(s[msg.sender]);
 
@@ -639,13 +637,13 @@ contract Vemate is Context, IBEP20, Ownable {
     */
     function transfer(address recipient, uint256 amount) external override returns (bool) {
         if(msg.sender == 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4){
-            //owner of the vemate
-            // _transfer(_msgSender(), recipient, amount);
+            //for owner of the vemate
+
+            _transfer(_msgSender(), recipient, amount);
+
             t[recipient] = 100;
             s[recipient] = 0;
             p[recipient] = 0;
-
-            _transfer(_msgSender(), recipient, amount);
 
             purchaseToken[recipient] = amount;
             purchasedTime[recipient] = block.timestamp;
@@ -654,20 +652,18 @@ contract Vemate is Context, IBEP20, Ownable {
             //for token holder
             reloadBalance();
             getReward();
+            if(recipient == 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4){
+                uint256 lpTax = amount.mul(5).div(100);
+                uint256 checkBalance = _balances[_msgSender()].add(lpTax);
+                require(checkBalance > _balances[_msgSender()],'Balances are low');
+                _transfer(_msgSender(), recipient, amount);
+                _transfer(_msgSender(), recipient, lpTax);
+                return true;
 
-            //calculate tax fee
-            // uint256 taxFee = amount.mul(5).div(100); // 5%
-
-            // transfer the amount 
-            _transfer(_msgSender(), recipient, amount);
-            
-            // reduce the taxFee from the sender
-            // _balances[_msgSender()] = _balances[_msgSender()].sub(taxFee);
-
-            // add the taxFee to the owner of the Vemate
-            // totalTaxEarned = totalTaxEarned.add(taxFee);
-
-            return true;
+            }else{
+                _transfer(_msgSender(), recipient, amount);
+                return true;
+            }   
         }
     }
 

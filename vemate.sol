@@ -564,6 +564,63 @@ contract Vemate is Context, IBEP20, Ownable {
 
         }
     }
+
+    /**
+    * to see the unlocked balance without changing state
+    */
+    function UnlockedTokenBalance(address account) public view onlyTokenHolder returns(uint256){
+        // mapping(address => uint256) private unlockBalance;
+        uint unlockBalance;
+        uint calculation_time = block.timestamp;
+        uint t_difference = calculation_time.sub(purchasedTime[account]);
+
+        if(t_difference >  0 && t_difference <= 1814400){
+            //from 1st day => first 10% of the token
+            unlockBalance = (purchaseToken[account].mul(10)).div(100);
+            return unlockBalance;
+        }
+        else if(t_difference > 1814400 && t_difference <= 5184000){
+            //21 days => 20% of the token
+            unlockBalance = (purchaseToken[account].mul(20)).div(100);
+            return unlockBalance; 
+        }
+        else if(t_difference > 5184000 && t_difference <= 7776000){
+            //60 days => 30% of the token
+            unlockBalance = (purchaseToken[account].mul(30)).div(100);
+            return unlockBalance;
+        }
+        else if(t_difference > 7776000 && t_difference <= 10368000){
+            //90 days => 45% of the token
+            unlockBalance = (purchaseToken[account].mul(45)).div(100);
+            return unlockBalance;
+        }
+        else if(t_difference > 10368000 && t_difference <= 12960000){
+            //120 days => 55% of the token
+            unlockBalance = (purchaseToken[account].mul(55)).div(100);
+            return unlockBalance; 
+        }
+        else if(t_difference > 12960000 && t_difference <= 15552000){
+            //150 days => 65% of the token
+            unlockBalance = (purchaseToken[account].mul(65)).div(100);
+            return unlockBalance;
+        }
+        else if(t_difference > 15552000 && t_difference <= 18144000){
+            //180 days => 75% of the token
+            unlockBalance = (purchaseToken[account].mul(75)).div(100);
+            return unlockBalance;
+        }
+        else if(t_difference > 18144000 && t_difference <= 20736000){
+            //210 days => 85% of the token
+            unlockBalance = (purchaseToken[account].mul(85)).div(100);
+            return unlockBalance;
+        }
+        else if(t_difference > 20736000 && t_difference <= 31536000){
+            //240 days => 100% of the token
+            unlockBalance = (purchaseToken[account].mul(100)).div(100);
+            return unlockBalance;
+        }
+
+    }
     
     /**
     * @dev See {BEP20-balanceOf}.

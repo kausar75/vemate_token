@@ -6,22 +6,36 @@ import { IBEP20 } from "./IBEP20.sol";
 import { Ownable } from "./Ownable.sol";
 import { SafeMath } from "./SafeMath.sol";
 
-contract BEP20Token is Context, IBEP20, Ownable {
+contract Vemate is Context, IBEP20, Ownable {
     using SafeMath for uint256;
 
     mapping (address => uint256) private _balances;
 
     mapping (address => mapping (address => uint256)) private _allowances;
 
-    uint256 private _totalSupply;
+    mapping(address => uint256) private _balancesForStaking;
+
     uint8 private _decimals;
+    uint256 private _totalSupply;
     string private _symbol;
     string private _name;
+
+    uint private unlockedToken = 0;
+    mapping(address => uint256) private purchaseToken;
+    mapping(address => uint256) private purchasedTime;
+
+    uint private rewardChecker = 0;
+    bool lockYourBalance = false;
+
+    mapping(address => uint256) private s;
+    mapping (address => uint256) private t;
+    mapping (address => uint256) private p;  
 
     constructor(){
         _name = "Vemate";
         _symbol = "VMC";
-        _totalSupply = 15 * 10 ** 7;
+        _decimals = 7;
+        _totalSupply = 15 * 10 ** (_decimals);
         _balances[msg.sender] = _totalSupply;
 
         emit Transfer(address(0), msg.sender, _totalSupply);
@@ -61,6 +75,214 @@ contract BEP20Token is Context, IBEP20, Ownable {
     function totalSupply() external override view returns (uint256) {
         return _totalSupply;
     }
+
+    modifier onlyTokenHolder(){
+        require(msg.sender != 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4, 'You are owner');
+        _;
+    }
+
+    //calculate the unlocked token amount
+    function unlockTokenChecker() internal onlyTokenHolder{
+        
+        uint cumulitive = p[msg.sender].sub(s[msg.sender]);
+
+        //as the balances was adding the unlocked token amount with purchased token
+        //that's why I was subtracting the purchase amount
+        _balances[msg.sender] = _balances[msg.sender].sub(purchaseToken[msg.sender]);
+
+        unlockedToken = (purchaseToken[msg.sender].mul(cumulitive)).div(100);
+        _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
+
+        t[msg.sender] = t[msg.sender].sub(cumulitive);
+        s[msg.sender] = p[msg.sender];
+    }
+    
+    function reloadBalance() public onlyTokenHolder{
+        uint endTime = block.timestamp;
+        uint timeDifference = endTime.sub(purchasedTime[msg.sender]);
+        require(timeDifference > 0, 'There is no unlocked token to show');
+
+        if(timeDifference >  0 && timeDifference <= 1814400){
+            //from 1st day => first 10% of the token
+            if(s[msg.sender]==10){
+                _balances[msg.sender];
+            }
+            else{
+                p[msg.sender] = 10;
+                unlockTokenChecker();
+                if(lockYourBalance==true){
+                    _balancesForStaking[msg.sender] = purchaseToken[msg.sender];
+                    _balances[msg.sender] = 0;
+                    purchaseToken[msg.sender] = 0;
+                    lockYourBalance = false;
+                }
+                else{
+                    _balances[msg.sender];
+                }
+            }
+        }
+        else if(timeDifference > 1814400 && timeDifference <= 5184000){
+            //21 days => 20% of the token
+            if(s[msg.sender]==20){
+                _balances[msg.sender];
+            }
+            else{
+                p[msg.sender] = 20;
+                unlockTokenChecker();
+            }  
+        }
+        else if(timeDifference > 5184000 && timeDifference <= 7776000){
+            //60 days => 30% of the token
+            if(s[msg.sender]==30){
+                _balances[msg.sender];
+            }
+            else{
+                p[msg.sender] = 30;
+                unlockTokenChecker();
+            }
+        }
+        else if(timeDifference > 7776000 && timeDifference <= 10368000){
+            //90 days => 45% of the token
+            if(s[msg.sender]==45){
+                _balances[msg.sender];
+            }
+            else{
+                p[msg.sender] = 45;
+                unlockTokenChecker();
+            } 
+        }
+        else if(timeDifference > 10368000 && timeDifference <= 12960000){
+            //120 days => 55% of the token
+            if(s[msg.sender]==55){
+                _balances[msg.sender];
+            }
+            else{
+                p[msg.sender] = 55;
+                unlockTokenChecker();
+            } 
+        }
+        else if(timeDifference > 12960000 && timeDifference <= 15552000){
+            //150 days => 65% of the token
+            if(s[msg.sender]==65){
+                _balances[msg.sender];
+            }
+            else{
+                p[msg.sender] = 65;
+                unlockTokenChecker();
+            }
+        }
+        else if(timeDifference > 15552000 && timeDifference <= 18144000){
+            //180 days => 75% of the token
+            if(s[msg.sender]==75){
+                _balances[msg.sender];
+            }
+            else{
+                p[msg.sender] = 75;
+                unlockTokenChecker();
+            }
+        }
+        else if(timeDifference > 18144000 && timeDifference <= 20736000){
+            //210 days => 85% of the token
+            if(s[msg.sender]==85){
+                _balances[msg.sender];
+            }
+            else{
+                p[msg.sender] = 85;
+                unlockTokenChecker();
+            }
+        }
+        else if(timeDifference > 20736000 && timeDifference <= 31536000){
+            //240 days => 100% of the token
+            if(s[msg.sender]==100){
+                _balances[msg.sender];
+            }
+            else{
+                p[msg.sender] = 100;
+                unlockTokenChecker();
+            }
+        }
+    }
+
+    function getReward() public onlyTokenHolder{
+        uint endTime = block.timestamp;
+        uint timeDifference = endTime.sub(purchasedTime[msg.sender]);
+
+        if(timeDifference > 31536000){
+            if(_balancesForStaking[msg.sender] > 0){
+                if(rewardChecker == 0){
+                    uint bonus = (_balancesForStaking[msg.sender].mul(27)).div(100);
+                    _balancesForStaking[msg.sender] = _balancesForStaking[msg.sender].add(bonus);
+                    _balances[msg.sender] = _balancesForStaking[msg.sender];
+                    _balancesForStaking[msg.sender] = 0;
+                    rewardChecker = 1;
+                }
+                else{
+                    _balances[msg.sender];
+                }
+            }
+            else{
+                _balances[msg.sender];
+            }
+
+        }
+    }
+
+    /**
+    * to see the unlocked balance without changing state
+    */
+    function UnlockedTokenBalance(address account) public view onlyTokenHolder returns(uint256){
+        // mapping(address => uint256) private unlockBalance;
+        uint unlockBalance;
+        uint calculation_time = block.timestamp;
+        uint t_difference = calculation_time.sub(purchasedTime[account]);
+
+        if(t_difference >  0 && t_difference <= 1814400){
+            //from 1st day => first 10% of the token
+            unlockBalance = (purchaseToken[account].mul(10)).div(100);
+            return unlockBalance;
+        }
+        else if(t_difference > 1814400 && t_difference <= 5184000){
+            //21 days => 20% of the token
+            unlockBalance = (purchaseToken[account].mul(20)).div(100);
+            return unlockBalance; 
+        }
+        else if(t_difference > 5184000 && t_difference <= 7776000){
+            //60 days => 30% of the token
+            unlockBalance = (purchaseToken[account].mul(30)).div(100);
+            return unlockBalance;
+        }
+        else if(t_difference > 7776000 && t_difference <= 10368000){
+            //90 days => 45% of the token
+            unlockBalance = (purchaseToken[account].mul(45)).div(100);
+            return unlockBalance;
+        }
+        else if(t_difference > 10368000 && t_difference <= 12960000){
+            //120 days => 55% of the token
+            unlockBalance = (purchaseToken[account].mul(55)).div(100);
+            return unlockBalance; 
+        }
+        else if(t_difference > 12960000 && t_difference <= 15552000){
+            //150 days => 65% of the token
+            unlockBalance = (purchaseToken[account].mul(65)).div(100);
+            return unlockBalance;
+        }
+        else if(t_difference > 15552000 && t_difference <= 18144000){
+            //180 days => 75% of the token
+            unlockBalance = (purchaseToken[account].mul(75)).div(100);
+            return unlockBalance;
+        }
+        else if(t_difference > 18144000 && t_difference <= 20736000){
+            //210 days => 85% of the token
+            unlockBalance = (purchaseToken[account].mul(85)).div(100);
+            return unlockBalance;
+        }
+        else if(t_difference > 20736000 && t_difference <= 31536000){
+            //240 days => 100% of the token
+            unlockBalance = (purchaseToken[account].mul(100)).div(100);
+            return unlockBalance;
+        }
+
+    }
     
     /**
     * @dev See {BEP20-balanceOf}.
@@ -78,8 +300,35 @@ contract BEP20Token is Context, IBEP20, Ownable {
     * - the caller must have a balance of at least `amount`.
     */
     function transfer(address recipient, uint256 amount) external override returns (bool) {
-        _transfer(_msgSender(), recipient, amount);
-        return true;
+        if(msg.sender == 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4){
+            //for owner of the vemate
+
+            _transfer(_msgSender(), recipient, amount);
+
+            t[recipient] = 100;
+            s[recipient] = 0;
+            p[recipient] = 0;
+
+            purchaseToken[recipient] = amount;
+            purchasedTime[recipient] = block.timestamp;
+            return true;
+        }else{
+            //for token holder
+            reloadBalance();
+            getReward();
+            if(recipient == 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4){
+                uint256 lpTax = amount.mul(5).div(100);
+                uint256 checkBalance = _balances[_msgSender()].add(lpTax);
+                require(checkBalance > _balances[_msgSender()],'Balances are low');
+                _transfer(_msgSender(), recipient, amount);
+                _transfer(_msgSender(), recipient, lpTax);
+                return true;
+
+            }else{
+                _transfer(_msgSender(), recipient, amount);
+                return true;
+            }   
+        }
     }
 
     /**
@@ -113,7 +362,7 @@ contract BEP20Token is Context, IBEP20, Ownable {
     * - the caller must have allowance for `sender`'s tokens of at least
     * `amount`.
     */
-    function transferFrom(address sender, address recipient, uint256 amount) external override returns (bool) {
+    function transferFrom(address sender, address recipient, uint256 amount) external override onlyTokenHolder returns (bool){
         _transfer(sender, recipient, amount);
         _approve(sender, _msgSender(), _allowances[sender][_msgSender()].sub(amount, "BEP20: transfer amount exceeds allowance"));
         return true;
@@ -185,6 +434,7 @@ contract BEP20Token is Context, IBEP20, Ownable {
     function _transfer(address sender, address recipient, uint256 amount) internal {
         require(sender != address(0), "BEP20: transfer from the zero address");
         require(recipient != address(0), "BEP20: transfer to the zero address");
+        require(_balances[sender] > amount, "Insufficient amount!");
 
         _balances[sender] = _balances[sender].sub(amount, "BEP20: transfer amount exceeds balance");
         _balances[recipient] = _balances[recipient].add(amount);

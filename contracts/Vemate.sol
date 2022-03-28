@@ -1,28 +1,61 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import { Context } from "./Context.sol";
-import { IBEP20 } from "./IBEP20.sol";
-import { Ownable } from "./Ownable.sol";
-import { SafeMath } from "./SafeMath.sol";
+import  "./IBEP20.sol";
+import  "./VestingToken.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
-contract BEP20Token is Context, IBEP20, Ownable {
+contract Vemate is  IBEP20, Ownable, Vesting{
     using SafeMath for uint256;
 
+    string private  _name = "Vemate";
+    string private  _symbol = "VMC";
+
     mapping (address => uint256) private _balances;
-
     mapping (address => mapping (address => uint256)) private _allowances;
+    mapping(address => bool) private _isExcludedFromFee;
 
+    uint8 private  _decimals = 18;
     uint256 private _totalSupply;
-    uint8 private _decimals;
-    string private _symbol;
-    string private _name;
 
-    constructor(){
+    address private _lpAddress;
+    address private _devAddress;
+    address private _marketingAddress;
+    address private _charityAddress;
+
+    uint8 private _lpTaxPercentage;
+    uint8 private _devTaxPercentage;
+    uint8 private _marketingTaxPercentage;
+    uint8 private _charityTaxPercentage;
+
+    constructor(address lpAddress, address devAddress, address marketingAddress,address charityAddress){
+        require(owner() != address(0), "Owner must be set");
+
         _name = "Vemate";
         _symbol = "VMC";
-        _totalSupply = 15 * 10 ** 7;
-        _balances[msg.sender] = _totalSupply;
+        _decimals = 18;
+        _totalSupply = 15000000 * 10**_decimals;
+
+        _lpAddress = lpAddress;
+        _devAddress = devAddress;
+        _marketingAddress = marketingAddress;
+        _charityAddress = charityAddress;
+
+        _isExcludedFromFee[owner()] = true;
+        _isExcludedFromFee[_lpAddress] = true;
+        _isExcludedFromFee[_devAddress] = true;
+        _isExcludedFromFee[_marketingAddress] = true;
+        _isExcludedFromFee[_charityAddress] = true;
+        _isExcludedFromFee[address(this)] = true;
+
+        _lpTaxPercentage = 2;
+        _devTaxPercentage = 1;
+        _marketingTaxPercentage = 1;
+        _charityTaxPercentage = 1;
+
+
+        _balances[_msgSender()] = _totalSupply;
 
         emit Transfer(address(0), msg.sender, _totalSupply);
     }
@@ -61,7 +94,7 @@ contract BEP20Token is Context, IBEP20, Ownable {
     function totalSupply() external override view returns (uint256) {
         return _totalSupply;
     }
-    
+
     /**
     * @dev See {BEP20-balanceOf}.
     */
@@ -185,10 +218,49 @@ contract BEP20Token is Context, IBEP20, Ownable {
     function _transfer(address sender, address recipient, uint256 amount) internal {
         require(sender != address(0), "BEP20: transfer from the zero address");
         require(recipient != address(0), "BEP20: transfer to the zero address");
+        require(amount > 0, "Transfer amount must be greater than zero");
+        require(_balances[sender] >= amount, "BEP20: transfer amount exceeds balance");
 
+        bool takeFee = true;
+
+        //if any account belongs to _isExcludedFromFee account then remove the fee
+        if (_isExcludedFromFee[sender] || _isExcludedFromFee[recipient]) {
+            takeFee = false;
+        }
+        _tokenTransfer(sender, recipient, amount, takeFee);
+    }
+
+    function _tokenTransfer(
+        address sender,
+        address recipient,
+        uint256 amount,
+        bool takeFee
+    ) private {
+        uint256 transferAmount = amount;
+        if (takeFee) {
+            uint256 lpTax = amount.mul(_lpTaxPercentage).div(10**2);
+            uint256 devTax = amount.mul(_devTaxPercentage).div(10**2);
+            uint256 marketetingTax = amount.mul(_marketingTaxPercentage).div(10**2);
+            uint256 charityTax = amount.mul(_charityTaxPercentage).div(10**2);
+
+            _balances[_lpAddress] = _balances[_lpAddress].add(lpTax);
+            emit Transfer(sender, _lpAddress, lpTax);
+
+            _balances[_devAddress] = _balances[_devAddress].add(devTax);
+            emit Transfer(sender, _devAddress, devTax);
+
+            _balances[_marketingAddress] = _balances[_marketingAddress].add(marketetingTax);
+            emit Transfer(sender, _marketingAddress, marketetingTax);
+
+
+            _balances[_charityAddress] = _balances[_charityAddress].add(charityTax);
+            emit Transfer(sender, _charityAddress, charityTax);
+
+            transferAmount = transferAmount.sub(lpTax.add(devTax).add(marketetingTax).add(charityTax));
+        }
         _balances[sender] = _balances[sender].sub(amount, "BEP20: transfer amount exceeds balance");
-        _balances[recipient] = _balances[recipient].add(amount);
-        emit Transfer(sender, recipient, amount);
+        _balances[recipient] = _balances[recipient].add(transferAmount);
+        emit Transfer(sender, recipient, transferAmount);
     }
 
     /** @dev Creates `amount` tokens and assigns them to `account`, increasing
@@ -258,4 +330,59 @@ contract BEP20Token is Context, IBEP20, Ownable {
         _burn(account, amount);
         _approve(account, _msgSender(), _allowances[account][_msgSender()].sub(amount, "BEP20: burn amount exceeds allowance"));
     }
+
+    function claimWithdrawableAmount() external {
+        uint256 amount = claim(_msgSender());
+        _transfer(address(this),_msgSender(), amount);
+    }
+
+    function setLpAddress(address lpAddress) external onlyOwner {
+        _lpAddress = lpAddress;
+        emit UpdateLpAddress(_lpAddress);
+    }
+
+    function setDevAddress(address devAddress) external onlyOwner {
+        _devAddress = devAddress;
+        emit UpdateDevAddress(_devAddress);
+    }
+
+    function setMarketingAddress(address marketingAddress) external onlyOwner {
+        _marketingAddress = marketingAddress;
+        emit UpdateMarketingAddress(_marketingAddress);
+    }
+
+    function setCharityAddress(address charityAddress) external onlyOwner {
+        _charityAddress = charityAddress;
+        emit UpdateCharityAddress(_charityAddress);
+    }
+
+    function setLpTaxPercentage(uint8 lpTaxPercentage) external onlyOwner {
+        _lpTaxPercentage = lpTaxPercentage;
+        emit UpdateLpTaxPercentage(_lpTaxPercentage);
+    }
+
+    function setDevTaxPercentage(uint8 devTaxPercentage) external onlyOwner {
+        _devTaxPercentage = devTaxPercentage;
+        emit UpdateDevTaxPercentage(_devTaxPercentage);
+    }
+
+    function setMarketingTaxPercentage(uint8 marketingTaxPercentage) external onlyOwner {
+        _marketingTaxPercentage = marketingTaxPercentage;
+        emit UpdateMarketingTaxPercentage(_marketingTaxPercentage);
+    }
+
+    function setCharityTaxPercentage(uint8 charityTaxPercentage) external onlyOwner {
+        _charityTaxPercentage = charityTaxPercentage;
+        emit UpdateCharityTaxPercentage(_charityTaxPercentage);
+    }
+
+    event UpdateLpAddress(address lpAddress);
+    event UpdateDevAddress(address devAddress);
+    event UpdateMarketingAddress(address marketAddress);
+    event UpdateCharityAddress(address charityAddress);
+
+    event UpdateLpTaxPercentage(uint8 lpTaxPercentage);
+    event UpdateDevTaxPercentage(uint8 devTaxPercentage);
+    event UpdateMarketingTaxPercentage(uint8 devTaxPercentage);
+    event UpdateCharityTaxPercentage(uint8 charityTaxPercentage);
 }

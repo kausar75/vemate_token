@@ -11,7 +11,7 @@ interface IBEP20 {
     * @dev Returns the token decimals.
     */
     function decimals() external view returns (uint8);
-    
+
     /**
     * @dev Returns the token symbol.
     */
@@ -75,7 +75,7 @@ interface IBEP20 {
     *
     * Emits a {Transfer} event.
     */
-    
+
     function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
 
     /**

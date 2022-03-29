@@ -3,57 +3,66 @@ pragma solidity 0.8.12;
 
 import  "./IBEP20.sol";
 import  "./VestingToken.sol";
+import "./IUniswapV2Router02.sol";
+import "./IUniswapV2Factory.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
-contract Vemate is  IBEP20, Ownable, Vesting{
+contract Vemate is  IBEP20, Ownable{
     using SafeMath for uint256;
 
     string private  _name = "Vemate";
-    string private  _symbol = "VMC";
+    string private _symbol = "VMC";
+
+    uint8 private _decimals = 18;
+    uint256 private _totalSupply = 150000000 * 10**_decimals; // 150 million;
+
+    IUniswapV2Router02 public uniswapV2Router;
+    address public uniswapV2Pair;
 
     mapping (address => uint256) private _balances;
     mapping (address => mapping (address => uint256)) private _allowances;
-    mapping(address => bool) private _isExcludedFromFee;
+    mapping(address => bool) private _isExcludedFromFeeAndLock;
+    mapping(address => uint256) private _addressToLastSwapTime;
 
-    uint8 private  _decimals = 18;
-    uint256 private _totalSupply;
+    address public lpWallet;
+    address public devWallet;
+    address public marketingWallet;
+    address public charityWallet;
 
-    address private _lpAddress;
-    address private _devAddress;
-    address private _marketingAddress;
-    address private _charityAddress;
+    uint8 public lpFeePercent;
+    uint8 public devFeePercent;
+    uint8 public marketingFeePercent;
+    uint8 public charityFeePercent;
+    uint8 public constant maxTaxPercentage = 5;
 
-    uint8 private _lpTaxPercentage;
-    uint8 private _devTaxPercentage;
-    uint8 private _marketingTaxPercentage;
-    uint8 private _charityTaxPercentage;
+    uint256 public lockedBetweenSells = 10;
+    uint256 public lockedBetweenBuys = 10;
+    bool private antiBot = true;
 
-    constructor(address lpAddress, address devAddress, address marketingAddress,address charityAddress){
+    constructor(address router, address lpAddress, address devAddress, address marketingAddress,address charityAddress){
         require(owner() != address(0), "Owner must be set");
+        lpWallet = lpAddress;
+        devWallet = devAddress;
+        marketingWallet = marketingAddress;
+        charityWallet = charityAddress;
 
-        _name = "Vemate";
-        _symbol = "VMC";
-        _decimals = 18;
-        _totalSupply = 15000000 * 10**_decimals;
+        _isExcludedFromFeeAndLock[owner()] = true;
+        _isExcludedFromFeeAndLock[lpWallet] = true;
+        _isExcludedFromFeeAndLock[devWallet] = true;
+        _isExcludedFromFeeAndLock[marketingWallet] = true;
+        _isExcludedFromFeeAndLock[charityWallet] = true;
+        _isExcludedFromFeeAndLock[address(this)] = true;
 
-        _lpAddress = lpAddress;
-        _devAddress = devAddress;
-        _marketingAddress = marketingAddress;
-        _charityAddress = charityAddress;
+        lpFeePercent = 2;
+        devFeePercent = 1;
+        marketingFeePercent = 1;
+        charityFeePercent = 1;
 
-        _isExcludedFromFee[owner()] = true;
-        _isExcludedFromFee[_lpAddress] = true;
-        _isExcludedFromFee[_devAddress] = true;
-        _isExcludedFromFee[_marketingAddress] = true;
-        _isExcludedFromFee[_charityAddress] = true;
-        _isExcludedFromFee[address(this)] = true;
-
-        _lpTaxPercentage = 2;
-        _devTaxPercentage = 1;
-        _marketingTaxPercentage = 1;
-        _charityTaxPercentage = 1;
-
+        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(router);
+        uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory())
+        .createPair(address(this), _uniswapV2Router.WETH());
+        uniswapV2Router = _uniswapV2Router;
 
         _balances[_msgSender()] = _totalSupply;
 
@@ -221,13 +230,36 @@ contract Vemate is  IBEP20, Ownable, Vesting{
         require(amount > 0, "Transfer amount must be greater than zero");
         require(_balances[sender] >= amount, "BEP20: transfer amount exceeds balance");
 
-        bool takeFee = true;
+        bool takeFee = false;
+        uint256 currentTime = getCurrentTime();
 
-        //if any account belongs to _isExcludedFromFee account then remove the fee
-        if (_isExcludedFromFee[sender] || _isExcludedFromFee[recipient]) {
-            takeFee = false;
+        if (_isExcludedFromFeeAndLock[sender] || _isExcludedFromFeeAndLock[recipient]) {
+            _tokenTransfer(sender, recipient, amount, takeFee);
+        }else{
+            // we need to collect tax only on selling token.
+            if (recipient == uniswapV2Pair) {
+                takeFee = true;
+                if (antiBot) {
+                    uint256 lastSwapTime = _addressToLastSwapTime[sender];
+                    require(
+                        currentTime - lastSwapTime >= lockedBetweenSells,
+                        "Lock time has not been released from last swap"
+                    );
+                }
+                _addressToLastSwapTime[sender] = currentTime;
+            }
+            if (sender == uniswapV2Pair) { // buy
+                if (antiBot) {
+                    uint256 lastSwapTime = _addressToLastSwapTime[recipient];
+                    require(
+                        currentTime - lastSwapTime >= lockedBetweenBuys,
+                        "Lock time has not been released from last swap"
+                    );
+                }
+                _addressToLastSwapTime[recipient] = currentTime;
+            }
+            _tokenTransfer(sender, recipient, amount, takeFee);
         }
-        _tokenTransfer(sender, recipient, amount, takeFee);
     }
 
     function _tokenTransfer(
@@ -238,23 +270,24 @@ contract Vemate is  IBEP20, Ownable, Vesting{
     ) private {
         uint256 transferAmount = amount;
         if (takeFee) {
-            uint256 lpTax = amount.mul(_lpTaxPercentage).div(10**2);
-            uint256 devTax = amount.mul(_devTaxPercentage).div(10**2);
-            uint256 marketetingTax = amount.mul(_marketingTaxPercentage).div(10**2);
-            uint256 charityTax = amount.mul(_charityTaxPercentage).div(10**2);
+            uint256 lpTax = amount.mul(lpFeePercent).div(10**2);
+            uint256 devTax = amount.mul(devFeePercent).div(10**2);
+            uint256 marketetingTax = amount.mul(marketingFeePercent).div(10**2);
+            uint256 charityTax = amount.mul(charityFeePercent).div(10**2);
 
-            _balances[_lpAddress] = _balances[_lpAddress].add(lpTax);
-            emit Transfer(sender, _lpAddress, lpTax);
+            // TODO: take BNB as tax not the token!
+            _balances[lpWallet] = _balances[lpWallet].add(lpTax);
+            emit Transfer(sender, lpWallet, lpTax);
 
-            _balances[_devAddress] = _balances[_devAddress].add(devTax);
-            emit Transfer(sender, _devAddress, devTax);
+            _balances[devWallet] = _balances[devWallet].add(devTax);
+            emit Transfer(sender, devWallet, devTax);
 
-            _balances[_marketingAddress] = _balances[_marketingAddress].add(marketetingTax);
-            emit Transfer(sender, _marketingAddress, marketetingTax);
+            _balances[marketingWallet] = _balances[marketingWallet].add(marketetingTax);
+            emit Transfer(sender, marketingWallet, marketetingTax);
 
 
-            _balances[_charityAddress] = _balances[_charityAddress].add(charityTax);
-            emit Transfer(sender, _charityAddress, charityTax);
+            _balances[charityWallet] = _balances[charityWallet].add(charityTax);
+            emit Transfer(sender, charityWallet, charityTax);
 
             transferAmount = transferAmount.sub(lpTax.add(devTax).add(marketetingTax).add(charityTax));
         }
@@ -331,51 +364,105 @@ contract Vemate is  IBEP20, Ownable, Vesting{
         _approve(account, _msgSender(), _allowances[account][_msgSender()].sub(amount, "BEP20: burn amount exceeds allowance"));
     }
 
-    function claimWithdrawableAmount() external {
-        uint256 amount = claim(_msgSender());
-        _transfer(address(this),_msgSender(), amount);
+    function setRouterAddress(address newRouter) external onlyOwner {
+        IUniswapV2Router02 _newPancakeRouter = IUniswapV2Router02(newRouter);
+        IUniswapV2Factory factory = IUniswapV2Factory(
+            _newPancakeRouter.factory()
+        );
+        address pair = factory.getPair(address(this), _newPancakeRouter.WETH());
+        if (pair == address(0)) {
+            uniswapV2Pair = factory.createPair(
+                address(this),
+                _newPancakeRouter.WETH()
+            );
+        } else {
+            uniswapV2Pair = pair;
+        }
+
+        uniswapV2Router = _newPancakeRouter;
+
+        emit UpdatePancakeRouter(uniswapV2Router, uniswapV2Pair);
     }
 
     function setLpAddress(address lpAddress) external onlyOwner {
-        _lpAddress = lpAddress;
-        emit UpdateLpAddress(_lpAddress);
+        lpWallet = lpAddress;
+        emit UpdateLpAddress(lpWallet);
     }
 
     function setDevAddress(address devAddress) external onlyOwner {
-        _devAddress = devAddress;
-        emit UpdateDevAddress(_devAddress);
+        devWallet = devAddress;
+        emit UpdateDevAddress(devWallet);
     }
 
     function setMarketingAddress(address marketingAddress) external onlyOwner {
-        _marketingAddress = marketingAddress;
-        emit UpdateMarketingAddress(_marketingAddress);
+        marketingWallet = marketingAddress;
+        emit UpdateMarketingAddress(marketingWallet);
     }
 
     function setCharityAddress(address charityAddress) external onlyOwner {
-        _charityAddress = charityAddress;
-        emit UpdateCharityAddress(_charityAddress);
+        charityWallet = charityAddress;
+        emit UpdateCharityAddress(charityWallet);
     }
 
     function setLpTaxPercentage(uint8 lpTaxPercentage) external onlyOwner {
-        _lpTaxPercentage = lpTaxPercentage;
-        emit UpdateLpTaxPercentage(_lpTaxPercentage);
+        lpFeePercent = lpTaxPercentage;
+        emit UpdateLpTaxPercentage(lpFeePercent);
     }
 
     function setDevTaxPercentage(uint8 devTaxPercentage) external onlyOwner {
-        _devTaxPercentage = devTaxPercentage;
-        emit UpdateDevTaxPercentage(_devTaxPercentage);
+        devFeePercent = devTaxPercentage;
+        emit UpdateDevTaxPercentage(devFeePercent);
     }
 
     function setMarketingTaxPercentage(uint8 marketingTaxPercentage) external onlyOwner {
-        _marketingTaxPercentage = marketingTaxPercentage;
-        emit UpdateMarketingTaxPercentage(_marketingTaxPercentage);
+        marketingFeePercent = marketingTaxPercentage;
+        emit UpdateMarketingTaxPercentage(marketingFeePercent);
     }
 
     function setCharityTaxPercentage(uint8 charityTaxPercentage) external onlyOwner {
-        _charityTaxPercentage = charityTaxPercentage;
-        emit UpdateCharityTaxPercentage(_charityTaxPercentage);
+        charityFeePercent = charityTaxPercentage;
+        emit UpdateCharityTaxPercentage(charityFeePercent);
     }
 
+    function setLockTimeBetweenSells(uint256 newLockSeconds)
+    external
+    onlyOwner
+    {
+        require(
+            newLockSeconds <= 30,
+            "Time between sells must be less than 30 seconds"
+        );
+        uint256 _previous = lockedBetweenSells;
+        lockedBetweenSells = newLockSeconds;
+
+        emit UpdateLockedBetweenSells(lockedBetweenSells, _previous);
+    }
+
+    function setLockTimeBetweenBuys(uint256 newLockSeconds) external onlyOwner {
+        require(
+            newLockSeconds <= 30,
+            "Time between buys be less than 30 seconds"
+        );
+        uint256 _previous = lockedBetweenBuys;
+        lockedBetweenBuys = newLockSeconds;
+        emit UpdateLockedBetweenBuys(lockedBetweenBuys, _previous);
+    }
+
+    function toggleAntiBot() external onlyOwner {
+        antiBot = !antiBot;
+
+        emit UpdateAntibotUpdated(antiBot);
+    }
+
+    function getCurrentTime()
+    internal
+    virtual
+    view
+    returns(uint256){
+        return block.timestamp;
+    }
+
+    event UpdatePancakeRouter(IUniswapV2Router02 router, address pair);
     event UpdateLpAddress(address lpAddress);
     event UpdateDevAddress(address devAddress);
     event UpdateMarketingAddress(address marketAddress);
@@ -385,4 +472,9 @@ contract Vemate is  IBEP20, Ownable, Vesting{
     event UpdateDevTaxPercentage(uint8 devTaxPercentage);
     event UpdateMarketingTaxPercentage(uint8 devTaxPercentage);
     event UpdateCharityTaxPercentage(uint8 charityTaxPercentage);
+
+    event UpdateLockedBetweenBuys(uint256 cooldown, uint256 previous);
+    event UpdateLockedBetweenSells(uint256 cooldown, uint256 previous);
+
+    event UpdateAntibotUpdated(bool isEnabled);
 }

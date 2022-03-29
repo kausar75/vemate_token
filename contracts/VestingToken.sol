@@ -43,7 +43,7 @@ contract Vesting is Ownable {
         uint256 _end,
         uint256 _amount
     )
-    external
+    public
     onlyOwner{
         require(_amount > 0, "TokenVesting: amount must be > 0");
 

@@ -15,7 +15,6 @@ contract Vemate is  IBEP20, Ownable{
     using FixedPoint for *;
 
     struct FeeWallet {
-        address  payable lp;
         address  payable dev;
         address  payable marketing;
         address  payable charity;
@@ -26,12 +25,12 @@ contract Vemate is  IBEP20, Ownable{
         uint8  dev;
         uint8  marketing;
         uint8  charity;
-        bool enabled;
+        bool enabledOnBuy;
+        bool enabledOnSell;
     }
 
     FeeWallet public feeWallets;
-    FeePercent public buyingFee  = FeePercent(0,0,0,0,false);
-    FeePercent public sellingFee = FeePercent(2,1,1,1,true);
+    FeePercent public fee  = FeePercent(2, 1, 1, 1, false, true);
 
     IUniswapV2Router02 public uniswapV2Router;
 
@@ -41,7 +40,7 @@ contract Vemate is  IBEP20, Ownable{
     // Pack variables together for gas optimization
     uint8   private _decimals = 18;
     uint8   public constant maxFeePercent = 5;
-    uint8   public swapTolerancePercent = 10;
+    uint8   public swapSlippageTolerancePercent = 10;
     bool    private antiBot = true;
     bool    private inSwapAndLiquify;
     bool    public swapAndLiquifyEnabled = true;
@@ -59,15 +58,11 @@ contract Vemate is  IBEP20, Ownable{
     uint256 public lockedBetweenSells = 10;
     uint256 public lockedBetweenBuys = 10;
     uint256 public maxTxAmount = _totalSupply;
-    uint256 public numTokensSellToAddToLiquidity = 10 * 10**_decimals;
+    uint256 public numTokensSellToAddToLiquidity = 10 * 10**_decimals; // 10 Token
 
-    // Oracle price
-    uint public price0CumulativeLast; // Vemate
-    uint public price1CumulativeLast; // WETH
-    uint public constant priceUpdatePeriod = 60; // TODO: change it on prod deploy
+    // We will depend on external price for the token to protect the sandwich attack.
+    uint256 tokenPerBNB = 1000000;
 
-    FixedPoint.uq112x112 public price0Average; // Vemate
-    FixedPoint.uq112x112 public price1Average; // WETH
 
     modifier lockTheSwap {
         inSwapAndLiquify = true;
@@ -77,27 +72,24 @@ contract Vemate is  IBEP20, Ownable{
 
     constructor(
         address router,
-        address payable lpAddress,
         address payable devAddress,
         address payable marketingAddress,
         address payable charityAddress
     ){
         require(owner() != address(0), "Owner must be set");
         require(router != address(0), "Router must be set");
-        require(lpAddress != address(0), "LP wallet must be set");
         require(devAddress != address(0), "Dev wallet must be set");
         require(marketingAddress != address(0), "Marketing wallet must be set");
         require(charityAddress != address(0), "Charity wallet must be set");
 
         _isPrivileged[owner()] = true;
-        _isPrivileged[lpAddress] = true;
         _isPrivileged[devAddress] = true;
         _isPrivileged[marketingAddress] = true;
         _isPrivileged[charityAddress] = true;
         _isPrivileged[address(this)] = true;
 
         // set wallets for collecting fees
-        feeWallets = FeeWallet(lpAddress, devAddress, marketingAddress, charityAddress);
+        feeWallets = FeeWallet(devAddress, marketingAddress, charityAddress);
 
         IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(router);
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory()).createPair(address(this), _uniswapV2Router.WETH());
@@ -122,17 +114,6 @@ contract Vemate is  IBEP20, Ownable{
         uniswapV2Router = _newPancakeRouter;
 
         emit UpdatePancakeRouter(uniswapV2Router, uniswapV2Pair);
-    }
-
-    function setLpWallet(address payable lpWallet) external onlyOwner{
-        require(lpWallet != address(0),  "LP wallet must be set");
-        address lpWalletPrev = feeWallets.lp;
-        feeWallets.lp = lpWallet;
-
-        _isPrivileged[lpWallet] = true;
-        delete _isPrivileged[lpWalletPrev];
-
-        emit UpdateLpWallet(lpWallet, lpWalletPrev);
     }
 
     function setDevWallet(address payable devWallet) external onlyOwner{
@@ -168,50 +149,58 @@ contract Vemate is  IBEP20, Ownable{
         emit UpdateCharityWallet(charityWallet, charityWalletPrev);
     }
 
-    function setBuyingFeePercent (
-        uint8 lpFeePercent,
-        uint8 devFeePercent,
-        uint8 marketingFeePercent,
-        uint8 charityFeePercent
-    ) external onlyOwner{
-        uint8 totalFeePercent = lpFeePercent + devFeePercent + marketingFeePercent + charityFeePercent;
+    function setLpFeePercent(uint8 lpFeePercent) external onlyOwner {
+        FeePercent memory currentFee = fee;
+        uint8 totalFeePercent = currentFee.marketing + currentFee.dev + currentFee.charity + lpFeePercent;
         require(totalFeePercent <= maxFeePercent, "Total fee percent cannot be greater than maxFeePercent");
+        uint8 previousFee = currentFee.lp;
+        currentFee.lp = lpFeePercent;
+        fee = currentFee;
 
-        FeePercent memory fee = buyingFee;
-        uint8 previousFeePercent = fee.lp + fee.dev + fee.marketing + fee.charity;
-
-        fee = FeePercent(lpFeePercent, devFeePercent, marketingFeePercent, charityFeePercent, fee.enabled);
-        buyingFee = fee;
-
-        emit UpdateBuyingFeePercent(totalFeePercent, previousFeePercent);
+        emit UpdateLpFeePercent(lpFeePercent, previousFee);
     }
 
-    function setSellingFeePercent (
-        uint8 lpFeePercent,
-        uint8 devFeePercent,
-        uint8 marketingFeePercent,
-        uint8 charityFeePercent
-    ) external onlyOwner{
-        uint8 totalFeePercent = lpFeePercent + devFeePercent + marketingFeePercent + charityFeePercent;
+    function setDevFeePercent(uint8 devFeePercent) external onlyOwner {
+        FeePercent memory currentFee = fee;
+        uint8 totalFeePercent = currentFee.marketing + currentFee.lp + currentFee.charity + devFeePercent;
         require(totalFeePercent <= maxFeePercent, "Total fee percent cannot be greater than maxFeePercent");
+        uint8 previousFee = currentFee.dev;
+        currentFee.dev = devFeePercent;
+        fee = currentFee;
 
-        FeePercent memory fee = sellingFee;
-        uint8 previousFeePercent = fee.lp + fee.dev + fee.marketing + fee.charity;
+        emit UpdateDevFeePercent(devFeePercent, previousFee);
+    }
 
-        fee = FeePercent(lpFeePercent, devFeePercent, marketingFeePercent, charityFeePercent, fee.enabled);
-        sellingFee = fee;
+    function setMarketingFeePercent(uint8 marketingFeePercent) external onlyOwner {
+        FeePercent memory currentFee = fee;
+        uint8 totalFeePercent = currentFee.lp + currentFee.dev + currentFee.charity + marketingFeePercent;
+        require(totalFeePercent <= maxFeePercent, "Total fee percent cannot be greater than maxFeePercent");
+        uint8 previousFee = currentFee.marketing;
+        currentFee.marketing = marketingFeePercent;
+        fee = currentFee;
 
-        emit UpdateSellingFeePercent(totalFeePercent, previousFeePercent);
+        emit UpdateMarketingFeePercent(marketingFeePercent, previousFee);
+    }
+
+    function setCharityFeePercent(uint8 charityFeePercent) external onlyOwner {
+        FeePercent memory currentFee = fee;
+        uint8 totalFeePercent = currentFee.marketing + currentFee.dev + currentFee.lp + charityFeePercent;
+        require(totalFeePercent <= maxFeePercent, "Total fee percent cannot be greater than maxFeePercent");
+        uint8 previousFee = currentFee.charity;
+        currentFee.charity = charityFeePercent;
+        fee = currentFee;
+
+        emit UpdateCharityFeePercent(charityFeePercent, previousFee);
     }
 
     function togglePauseBuyingFee() external onlyOwner{
-        buyingFee.enabled = !buyingFee.enabled;
-        emit UpdateBuyingFee(buyingFee.enabled);
+        fee.enabledOnBuy = !fee.enabledOnBuy;
+        emit UpdateBuyingFee(fee.enabledOnBuy);
     }
 
     function togglePauseSellingFee() external onlyOwner{
-        sellingFee.enabled = !sellingFee.enabled;
-        emit UpdateSellingFee(sellingFee.enabled);
+        fee.enabledOnSell = !fee.enabledOnSell;
+        emit UpdateSellingFee(fee.enabledOnSell);
     }
 
     function setLockTimeBetweenSells(uint256 newLockSeconds) external onlyOwner {
@@ -239,6 +228,11 @@ contract Vemate is  IBEP20, Ownable{
         emit UpdateMaxTxAmount(maxTxAmount, prevTxAmount);
     }
 
+    function updateTokenPrice(uint256 _tokenPerBNB) external onlyOwner {
+        tokenPerBNB = _tokenPerBNB;
+        emit UpdateTokenPerBNB(tokenPerBNB);
+    }
+
     function toggleSwapAndLiquify() external onlyOwner{
         swapAndLiquifyEnabled = !swapAndLiquifyEnabled;
         emit UpdateSwapAndLiquify(swapAndLiquifyEnabled);
@@ -246,9 +240,9 @@ contract Vemate is  IBEP20, Ownable{
 
     function setSwapTolerancePercent(uint8 newTolerancePercent) external onlyOwner{
         require(newTolerancePercent <= 100, "Swap tolerance percent cannot be more than 100");
-        uint8 swapTolerancePercentPrev = swapTolerancePercent;
-        swapTolerancePercent = newTolerancePercent;
-        emit UpdateSwapTolerancePercent(swapTolerancePercent, swapTolerancePercentPrev);
+        uint8 swapTolerancePercentPrev = swapSlippageTolerancePercent;
+        swapSlippageTolerancePercent = newTolerancePercent;
+        emit UpdateSwapTolerancePercent(swapSlippageTolerancePercent, swapTolerancePercentPrev);
     }
 
     function setMinTokenToSwapAndLiquify(uint256 amount) external onlyOwner{
@@ -419,30 +413,30 @@ contract Vemate is  IBEP20, Ownable{
         require(amount > 0, "Transfer amount must be greater than zero");
         require(_balances[sender] >= amount, "BEP20: transfer amount exceeds balance");
 
-        FeePercent memory fee;
         bool takeFee = false;
 
-        if (recipient == uniswapV2Pair && !_isPrivileged[sender]) { // sell : fee and restrictions for non-privileged wallet
+        if (!_isPrivileged[sender] || _isPrivileged[recipient]){
+            // takeFee already false. Do nothing and reduce gas fee.
+        } else if (recipient == uniswapV2Pair) { // sell : fee and restrictions for non-privileged wallet
             require(amount <= maxTxAmount, "Amount larger than max tx amount!");
             checkSwapFrequency(sender);
-            updatePriceOracle();  // if there is any swap made, update the price oracle
-            if (sellingFee.enabled){
-                fee = sellingFee;
+            if (fee.enabledOnSell){
                 takeFee = true;
+                if (shouldSwap()){
+                    swapAndLiquify(numTokensSellToAddToLiquidity);
+                }
             }
-        } else if (sender == uniswapV2Pair && !_isPrivileged[sender]){  // buy : fee and restrictions for non-privileged wallet
+        } else if (sender == uniswapV2Pair){  // buy : fee and restrictions for non-privileged wallet
             require(amount <= maxTxAmount, "Amount larger than max tx amount!");
             checkSwapFrequency(recipient);
-            updatePriceOracle();  // if there is any swap made, update the price oracle
-            if (buyingFee.enabled){
-                fee = buyingFee;
+            if (fee.enabledOnBuy){
                 takeFee = true;
+                if (shouldSwap()){
+                    swapAndLiquify(numTokensSellToAddToLiquidity);
+                }
             }
         }
-        if (shouldSwap()){
-            swapAndLiquify(numTokensSellToAddToLiquidity, fee);
-        }
-        _tokenTransfer(sender, recipient, amount, fee,takeFee);
+        _tokenTransfer(sender, recipient, amount, takeFee);
     }
 
     function shouldSwap() private view returns(bool)  {
@@ -458,13 +452,7 @@ contract Vemate is  IBEP20, Ownable{
     // to recieve ETH from uniswapV2Router when swapping
     receive() external payable {}
 
-    // TODO: Remove after testing is done
-    function swapTesting(uint256 amount) external lockTheSwap{
-        FeePercent memory fee = FeePercent(2, 1 , 1 , 1, true);
-        swapAndLiquify(amount, fee);
-    }
-
-    function swapAndLiquify(uint256 amount, FeePercent memory fee) internal lockTheSwap { // TODO: change to private
+    function swapAndLiquify(uint256 amount) private lockTheSwap {
         // capture the contract's current ETH balance.
         // this is so that we can capture exactly the amount of ETH that the
         // swap creates, and not make the liquidity event include any ETH that
@@ -490,12 +478,12 @@ contract Vemate is  IBEP20, Ownable{
         uint256 charityBnbShare = (receivedBnb*2*fee.charity)/(totalFee*2 - fee.lp);
 
 
+        // feeWallets.lp.transfer(lpHalfBnbShare);
         feeWallets.dev.transfer(devBnbShare);
         feeWallets.marketing.transfer(marketingBnbShare);
         feeWallets.charity.transfer(charityBnbShare);
 
-        // remaining tokens and Bnb will be used to addLiquidity
-        addLiquidity(lpHalf, lpHalfBnbShare, feeWallets.lp);
+        addLiquidity(lpHalf, lpHalfBnbShare);
     }
 
     function swapTokensForEth(uint256 tokenAmount) private {
@@ -506,45 +494,50 @@ contract Vemate is  IBEP20, Ownable{
 
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 
-        uint ethAmount = consultPriceOracle(path[0], tokenAmount);
+        uint ethAmount = tokenAmount/tokenPerBNB;
 
-        uint minETHAmount = ethAmount - (ethAmount*swapTolerancePercent)/100;
+        uint minETHAmount = ethAmount - (ethAmount* swapSlippageTolerancePercent)/100;
 
         // make the swap
-        uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+        try uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
             tokenAmount,
             minETHAmount, // this will protect sandwich attack
             path,
             address(this),
             getCurrentTime()
-        );
+        ){
+            emit SwapAndLiquifyStatus("Success");
+        }catch {
+            emit SwapAndLiquifyStatus("Failed");
+        }
     }
 
-    function addLiquidity(uint256 tokenAmount, uint256 ethAmount, address payable lpWallet) private {
+    function addLiquidity(uint256 tokenAmount, uint256 ethAmount) private {
+        // require(msg.value>0, "No eth found in this account");
         // approve token transfer to cover all possible scenarios
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 
-        uint minETHAmount = ethAmount - (ethAmount*swapTolerancePercent)/100;
-        uint minTokenAmount = tokenAmount - (tokenAmount*swapTolerancePercent)/100;
+        uint minETHAmount = ethAmount - (ethAmount* swapSlippageTolerancePercent)/100;
+        uint minTokenAmount = tokenAmount - (tokenAmount* swapSlippageTolerancePercent)/100;
 
         // add the liquidity
-        uniswapV2Router.addLiquidityETH(
+        uniswapV2Router.addLiquidityETH{value: ethAmount}(
             address(this),
             tokenAmount,
             minTokenAmount,
             minETHAmount,
-            lpWallet,
+            address(this),
             getCurrentTime()
         );
+        emit LiquidityAdded(tokenAmount, ethAmount);
     }
 
     function _tokenTransfer(
         address sender,
         address recipient,
         uint256 amount,
-        FeePercent memory fee,
         bool takeFee
-    ) private {
+    ) internal {
         uint256 transferAmount = amount;
         if (takeFee) {
             uint8 totalFeePercent = fee.lp + fee.marketing + fee.charity + fee.dev;
@@ -591,46 +584,19 @@ contract Vemate is  IBEP20, Ownable{
         _addressToLastSwapTime[whom] = currentTime;
     }
 
-    function updatePriceOracle() private {
-        uint currentTime = getCurrentTime();
-        uint timeElapsed = currentTime - blockTimestampLast; // overflow is desired
-        if (timeElapsed > priceUpdatePeriod) {
-            (uint price0Cumulative, uint price1Cumulative, uint32 blockTimestamp) =
-            UniswapV2OracleLibrary.currentCumulativePrices(address(uniswapV2Pair));
-
-            // overflow is desired, casting never truncates
-            // cumulative price is in (uq112x112 price * seconds) units so we simply wrap it after division by time elapsed
-            price0Average = FixedPoint.uq112x112(uint224((price0Cumulative - price0CumulativeLast) / timeElapsed));
-            price1Average = FixedPoint.uq112x112(uint224((price1Cumulative - price1CumulativeLast) / timeElapsed));
-
-            price0CumulativeLast = price0Cumulative;
-            price1CumulativeLast = price1Cumulative;
-            blockTimestampLast = blockTimestamp;
-        }
-    }
-
-    // note this will always return 0 before update has been called successfully for the first time.
-    function consultPriceOracle(address token, uint amountIn) public view returns (uint amountOut) {
-        if (token == address(this)) {
-            amountOut = price0Average.mul(amountIn).decode144();
-        } else {
-            require(token == uniswapV2Router.WETH(), "Price Oracle: Invalid Token");
-            amountOut = price1Average.mul(amountIn).decode144();
-        }
-    }
-
     function getCurrentTime() internal virtual view returns(uint){
         return block.timestamp;
     }
 
     event UpdatePancakeRouter(IUniswapV2Router02 router, address pair);
-    event UpdateLpWallet(address current, address previous);
     event UpdateDevWallet(address current, address previous);
     event UpdateMarketingWallet(address current, address previous);
     event UpdateCharityWallet(address current, address previous);
 
-    event UpdateBuyingFeePercent(uint8 current, uint8 previous);
-    event UpdateSellingFeePercent(uint8 current, uint8 previous);
+    event UpdateLpFeePercent(uint8 current, uint8 previous);
+    event UpdateDevFeePercent(uint8 current, uint8 previous);
+    event UpdateMarketingFeePercent(uint8 current, uint8 previous);
+    event UpdateCharityFeePercent(uint8 current, uint8 previous);
 
     event UpdateSellingFee(bool isEnabled);
     event UpdateBuyingFee(bool isEnabled);
@@ -642,7 +608,10 @@ contract Vemate is  IBEP20, Ownable{
 
     event UpdateMaxTxAmount(uint256 maxTxAmount, uint256 prevTxAmount);
 
+    event UpdateTokenPerBNB(uint256 tokenPerBNB);
     event UpdateSwapAndLiquify(bool swapAndLiquifyEnabled);
     event UpdateSwapTolerancePercent(uint8 swapTolerancePercent, uint8 swapTolerancePercentPrev);
     event UpdateMinTokenToSwapAndLiquify(uint256 numTokensSellToAddToLiquidity, uint256 numTokensSellToAddToLiquidityPrev);
+    event LiquidityAdded(uint256 tokenAmount, uint256 bnbAmount);
+    event SwapAndLiquifyStatus(string status);
 }

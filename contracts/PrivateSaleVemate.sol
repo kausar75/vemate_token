@@ -5,11 +5,13 @@ import "./VemateToken.sol";
 import "./VestingToken.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract PrivateSale is Ownable, Vesting{
     using SafeMath for uint256;
 
     Vemate immutable private vemate;
+    IERC20 immutable private usdt;
 
     bool public isInPrivateSale;
     bool public isPrivateSaleDone;
@@ -23,17 +25,27 @@ contract PrivateSale is Ownable, Vesting{
     uint256 public maximumPrivateSaleToken;
     uint256 public totalAmountInVesting;
 
-    constructor(address vemateToken){
+    uint256 public initialTokenUnlockTime;
+
+    uint256 public vematePerUSDT = 1000;
+
+    uint8 private _decimals = 18;
+
+
+    constructor(address vemateToken, address usdtToken){
         require(vemateToken != address(0x0));
-        vemate = Vemate(vemateToken);
+        require(usdtToken != address(0x0));
         require(owner() != address(0), "Owner must be set");
+
+        vemate = Vemate(vemateToken);
+        usdt = IERC20(usdtToken);
 
         isInPrivateSale = false;
         isPrivateSaleDone = false;
         isPrivateSalePaused = true;
     }
 
-    function startPrivateSale(uint256 minTokenPerSale, uint256 maxTokenPerSale) external onlyOwner {
+    function startPrivateSale(uint256 minTokenPerSale, uint256 maxTokenPerSale, uint256 initialTokenUnlkTime) external onlyOwner {
         require(!isPrivateSaleDone, "PrivateSale finished");
         require(!isInPrivateSale, "Already In PrivateSale");
 
@@ -42,6 +54,8 @@ contract PrivateSale is Ownable, Vesting{
 
         minimumPrivateSaleToken = minTokenPerSale;
         maximumPrivateSaleToken = maxTokenPerSale;
+
+        initialTokenUnlockTime = initialTokenUnlkTime;
     }
 
     function stopPrivateSale() external onlyOwner {
@@ -56,25 +70,36 @@ contract PrivateSale is Ownable, Vesting{
         isPrivateSalePaused = !isPrivateSalePaused;
     }
 
+    function approveUSDT(uint256 tokenAmount) external {
+        address buyer = _msgSender();
+        require(buyer != address(0), "Not a valid address");
 
+        uint256 priceInUSDT = tokenAmount.div(vematePerUSDT);
+        require(usdt.balanceOf(buyer) >= priceInUSDT, "Not enough usdt token on balance");
+        usdt.approve(address(this),  priceInUSDT);
+    }
 
     /**
     * @notice sellTokenForVesting sells token to the buyers. token won't be sent to buyers wallet immediately, rather it will be unlock gradually and buyers need to claim it.
-    * @param to to address of the buyer
     * @param tokenAmount amount of token to be sold
-    * @param initialTokenUnlockTime timestamp of second from when token will start unlocking
     */
-    function sellTokenForVesting(address to, uint256 tokenAmount, uint256 initialTokenUnlockTime) external onlyOwner{
+    function buyTokenForVesting( uint256 tokenAmount) external{
+        address to = _msgSender();
+        require(to != address(0), "Not a valid address");
         require(isInPrivateSale, "Not in a PrivateSale");
         require(!isPrivateSalePaused, "PrivateSale is Paused");
-        require(tokenAmount >= minimumPrivateSaleToken, "Token is less than minimun");
+        require(tokenAmount >= minimumPrivateSaleToken, "Token is less than minimum");
         require(tokenAmount <= maximumPrivateSaleToken, "Token is greater than maximum");
         require(getAmountLeftForPrivateSale()>= tokenAmount, "Not enough amount left for sell");
 
+        // check balance of the buyer
+        uint256 priceInUSDT = tokenAmount.div(vematePerUSDT);
+        require(usdt.balanceOf(to) >= priceInUSDT, "Not enough usdt token on balance");
+
+        usdt.transferFrom(to, address(this), priceInUSDT);
         totalSoldToken.add(tokenAmount);
 
         uint256 time = getCurrentTime();
-
         // unlock 10% on initialTokenUnlockTime
         createVestingSchedule(to, time, initialTokenUnlockTime,tokenAmount.mul(10).div(100));
         // unlock another 10% on 21 days after initialTokenUnlockTime
@@ -102,7 +127,8 @@ contract PrivateSale is Ownable, Vesting{
     * @param interestPercentage percentage of interest on tokenAmount buyers will get
     * @param periodMonth number of months after the token will fully unlock with interest
     */
-    function sellTokenForDeposit(address to, uint256 tokenAmount, uint256 start, uint8 interestPercentage, uint64 periodMonth) external onlyOwner{
+    function buyTokenForDeposit(address to, uint256 tokenAmount, uint256 start, uint8 interestPercentage, uint64 periodMonth) external{
+        require(_msgSender() != address(0), "Not a valid address");
         require(isInPrivateSale, "Not in a PrivateSale");
         require(!isPrivateSalePaused, "PrivateSale is Paused");
         require(tokenAmount >= minimumPrivateSaleToken, "Token is less than minimum");
@@ -119,6 +145,11 @@ contract PrivateSale is Ownable, Vesting{
         totalAmountInVesting.add(tokenAmount);
     }
 
+    function withdrawUSDT(address where) external onlyOwner{
+        require(where != address(0), "cannot withdraw to a zero address");
+        usdt.transfer(where, usdt.balanceOf(address(this)));
+    }
+
     /**
     * @dev Returns the amount of tokens that can be withdrawn by the owner.
     * @return the amount of tokens
@@ -132,7 +163,6 @@ contract PrivateSale is Ownable, Vesting{
 
     /**
     * @dev Claim the withdrawable tokens
-    * @return the amount of tokens
     */
     function claimWithdrawableAmount() external {
         uint256 amount = claim(_msgSender());

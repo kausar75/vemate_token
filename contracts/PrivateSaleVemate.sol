@@ -3,7 +3,7 @@ pragma solidity 0.8.12;
 
 import "./VemateToken.sol";
 import "./VestingToken.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "https://github.com/sadiq1971/sol-contracts/blob/main/lib/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 

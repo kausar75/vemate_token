@@ -61,7 +61,7 @@ contract Vemate is  IBEP20, Ownable{
     uint256 public numTokensSellToAddToLiquidity = 10 * 10**_decimals; // 10 Token
 
     // We will depend on external price for the token to protect the sandwich attack.
-    uint256 tokenPerBNB = 1000000;
+    uint256 public tokenPerBNB = 1000000;
 
 
     modifier lockTheSwap {
@@ -415,7 +415,7 @@ contract Vemate is  IBEP20, Ownable{
 
         bool takeFee = false;
 
-        if (!_isPrivileged[sender] || _isPrivileged[recipient]){
+        if (_isPrivileged[sender] || _isPrivileged[recipient]){
             // takeFee already false. Do nothing and reduce gas fee.
         } else if (recipient == uniswapV2Pair) { // sell : fee and restrictions for non-privileged wallet
             require(amount <= maxTxAmount, "Amount larger than max tx amount!");

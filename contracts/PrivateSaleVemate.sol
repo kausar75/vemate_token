@@ -93,7 +93,7 @@ contract PrivateSale is Ownable, Vesting{
 
         // check balance of the buyer
         uint256 priceInBUSD = tokenAmount/vematePerBUSD;
-        require(erc20.balanceOf(to) >= priceInBUSD, "Not enough usdt token on balance");
+        require(erc20.balanceOf(to) >= priceInBUSD, "Not enough busd token on balance");
 
 
 
@@ -148,8 +148,8 @@ contract PrivateSale is Ownable, Vesting{
         erc20.transferFrom(to, address(this), priceInBUSD);
     }
 
-    function balanceBUSD() external view onlyOwner{
-        erc20.balanceOf(address(this));
+    function balanceBUSD() external view onlyOwner returns(uint256){
+        return erc20.balanceOf(address(this));
     }
 
     function withdrawBUSD(uint256 amount, address where) external onlyOwner{

@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.12;
+pragma solidity 0.8.9;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "https://github.com/sadiq1971/sol-contracts/blob/main/lib/Ownable.sol";
 
 contract Vesting is Ownable {
-    using SafeMath for uint256;
-
     struct VestingSchedule{
         // to of tokens after they are released
         address  to;
@@ -22,14 +19,6 @@ contract Vesting is Ownable {
     mapping(bytes32 => VestingSchedule) private vestingSchedules;
     mapping(address => uint256) private holdersVestingCount;
 
-    // Vemate immutable private _token;
-
-    constructor(){
-        // require(vemateToken != address(0x0));
-        // _token = Vemate(vemateToken);
-        // require(owner() != address(0), "Owner must be set");
-    }
-
     /**
     * @notice Creates a new vesting schedule for a address.
     * @param _to address of the beneficiary to whom vested tokens are transferred
@@ -42,13 +31,10 @@ contract Vesting is Ownable {
         uint256 _start,
         uint256 _end,
         uint256 _amount
-    )
-    public
-    onlyOwner{
+    ) internal {
         require(_amount > 0, "TokenVesting: amount must be > 0");
 
         bytes32 vestingScheduleId = computeNextVestingScheduleIdForHolder(_to);
-
         vestingSchedules[vestingScheduleId] = VestingSchedule(
             _to,
             _start,
@@ -57,7 +43,7 @@ contract Vesting is Ownable {
             false
         );
         uint256 currentVestingCount = holdersVestingCount[_to];
-        holdersVestingCount[_to] = currentVestingCount.add(1);
+        holdersVestingCount[_to] += currentVestingCount;
     }
 
     /**
@@ -125,17 +111,6 @@ contract Vesting is Ownable {
     returns(VestingSchedule memory){
         return getVestingSchedule(computeVestingScheduleIdForAddressAndIndex(holder, index));
     }
-
-    /**
-    * @notice Returns the total amount of vesting schedules.
-    * @return the total amount of vesting schedules
-    */
-    // function getVestingSchedulesTotalAmount()
-    // external
-    // view
-    // returns(uint256){
-    //     return _token.balanceOf(address(this));
-    // }
 
     /**
     * @notice Returns the vesting schedule information for a given identifier.

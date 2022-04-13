@@ -1,44 +1,262 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.12;
 
-import { Context } from "./Context.sol";
-import { IBEP20 } from "./IBEP20.sol";
-import { Ownable } from "./Ownable.sol";
-import { SafeMath } from "./SafeMath.sol";
+import "@pancakeswap/pancake-swap-lib/contracts/utils/FixedPoint.sol";
+import "https://github.com/sadiq1971/sol-contracts/blob/main/lib/Ownable.sol";
+import "https://github.com/sadiq1971/sol-contracts/blob/main/token/bep20/IBEP20.sol";
+import "https://github.com/sadiq1971/sol-contracts/blob/main/uniswap/interface/IUniswapV2Pair.sol";
+import "https://github.com/sadiq1971/sol-contracts/blob/main/uniswap/interface/IUniswapV2Router01.sol";
+import "https://github.com/sadiq1971/sol-contracts/blob/main/uniswap/interface/IUniswapV2Router02.sol";
+import "https://github.com/sadiq1971/sol-contracts/blob/main/uniswap/interface/IUniswapV2Factory.sol";
+import "https://github.com/sadiq1971/sol-contracts/blob/main/uniswap/lib/UniswapOracleLibrary.sol";
 
-contract Vemate is Context, IBEP20, Ownable {
-    using SafeMath for uint256;
+
+contract Vemate is  IBEP20, Ownable{
+    using FixedPoint for *;
+
+    struct FeeWallet {
+        address  payable dev;
+        address  payable marketing;
+        address  payable charity;
+    }
+
+    struct FeePercent {
+        uint8  lp;
+        uint8  dev;
+        uint8  marketing;
+        uint8  charity;
+        bool enabledOnBuy;
+        bool enabledOnSell;
+    }
+
+    FeeWallet public feeWallets;
+    FeePercent public fee  = FeePercent(2, 1, 1, 1, false, true);
+
+    IUniswapV2Router02 public uniswapV2Router;
+
+    string private  _name = "Vemate";
+    string private _symbol = "VMC";
+
+    // Pack variables together for gas optimization
+    uint8   private _decimals = 18;
+    uint8   public constant maxFeePercent = 5;
+    uint8   public swapSlippageTolerancePercent = 10;
+    bool    private antiBot = true;
+    bool    private inSwapAndLiquify;
+    bool    public swapAndLiquifyEnabled = true;
+    uint32  private blockTimestampLast;
+
+    address public uniswapV2Pair;
+
+    uint256 private _totalSupply = 150000000 * 10**_decimals; // 150 million;
 
     mapping (address => uint256) private _balances;
-
     mapping (address => mapping (address => uint256)) private _allowances;
+    mapping (address => bool) private _isPrivileged;
+    mapping (address => uint) private _addressToLastSwapTime;
 
-    mapping(address => uint256) private _balancesForStaking;
+    uint256 public lockedBetweenSells = 10;
+    uint256 public lockedBetweenBuys = 10;
+    uint256 public maxTxAmount = _totalSupply;
+    uint256 public numTokensSellToAddToLiquidity = 10 * 10**_decimals; // 10 Token
 
-    uint8 private _decimals;
-    uint256 private _totalSupply;
-    string private _symbol;
-    string private _name;
+    // We will depend on external price for the token to protect the sandwich attack.
+    uint256 public tokenPerBNB = 1000000;
 
-    uint private unlockedToken = 0;
-    mapping(address => uint256) private purchaseToken;
-    mapping(address => uint256) private purchasedTime;
 
-    uint private rewardChecker = 0;
-    bool lockYourBalance = false;
+    modifier lockTheSwap {
+        inSwapAndLiquify = true;
+        _;
+        inSwapAndLiquify = false;
+    }
 
-    mapping(address => uint256) private s;
-    mapping (address => uint256) private t;
-    mapping (address => uint256) private p;  
+    constructor(
+        address router,
+        address payable devAddress,
+        address payable marketingAddress,
+        address payable charityAddress
+    ){
+        require(owner() != address(0), "Owner must be set");
+        require(router != address(0), "Router must be set");
+        require(devAddress != address(0), "Dev wallet must be set");
+        require(marketingAddress != address(0), "Marketing wallet must be set");
+        require(charityAddress != address(0), "Charity wallet must be set");
 
-    constructor(){
-        _name = "Vemate";
-        _symbol = "VMC";
-        _decimals = 7;
-        _totalSupply = 15 * 10 ** (_decimals);
-        _balances[msg.sender] = _totalSupply;
+        _isPrivileged[owner()] = true;
+        _isPrivileged[devAddress] = true;
+        _isPrivileged[marketingAddress] = true;
+        _isPrivileged[charityAddress] = true;
+        _isPrivileged[address(this)] = true;
+
+        // set wallets for collecting fees
+        feeWallets = FeeWallet(devAddress, marketingAddress, charityAddress);
+
+        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(router);
+        uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory()).createPair(address(this), _uniswapV2Router.WETH());
+        uniswapV2Router = _uniswapV2Router;
+
+        _balances[_msgSender()] = _totalSupply;
 
         emit Transfer(address(0), msg.sender, _totalSupply);
+    }
+
+    function setRouterAddress(address newRouter) external onlyOwner {
+        IUniswapV2Router02 _newPancakeRouter = IUniswapV2Router02(newRouter);
+        IUniswapV2Factory factory = IUniswapV2Factory(_newPancakeRouter.factory()
+        );
+        address pair = factory.getPair(address(this), _newPancakeRouter.WETH());
+        if (pair == address(0)) {
+            uniswapV2Pair = factory.createPair(address(this), _newPancakeRouter.WETH());
+        } else {
+            uniswapV2Pair = pair;
+        }
+
+        uniswapV2Router = _newPancakeRouter;
+
+        emit UpdatePancakeRouter(uniswapV2Router, uniswapV2Pair);
+    }
+
+    function setDevWallet(address payable devWallet) external onlyOwner{
+        require(devWallet != address(0),  "Dev wallet must be set");
+        address devWalletPrev = feeWallets.dev;
+        feeWallets.dev = devWallet;
+
+        _isPrivileged[devWallet] = true;
+        delete _isPrivileged[devWalletPrev];
+
+        emit UpdateDevWallet(devWallet, devWalletPrev);
+    }
+
+    function setMarketingWallet(address payable marketingWallet) external onlyOwner{
+        require(marketingWallet != address(0),  "Marketing wallet must be set");
+        address marketingWalletPrev = feeWallets.marketing;
+        feeWallets.marketing = marketingWallet;
+
+        _isPrivileged[marketingWallet] = true;
+        delete _isPrivileged[marketingWalletPrev];
+
+        emit UpdateMarketingWallet(marketingWallet, marketingWalletPrev);
+    }
+
+    function setCharityWallet(address payable charityWallet) external onlyOwner{
+        require(charityWallet != address(0),  "Charity wallet must be set");
+        address charityWalletPrev = feeWallets.charity;
+        feeWallets.charity = charityWallet;
+
+        _isPrivileged[charityWallet] = true;
+        delete _isPrivileged[charityWalletPrev];
+
+        emit UpdateCharityWallet(charityWallet, charityWalletPrev);
+    }
+
+    function setLpFeePercent(uint8 lpFeePercent) external onlyOwner {
+        FeePercent memory currentFee = fee;
+        uint8 totalFeePercent = currentFee.marketing + currentFee.dev + currentFee.charity + lpFeePercent;
+        require(totalFeePercent <= maxFeePercent, "Total fee percent cannot be greater than maxFeePercent");
+        uint8 previousFee = currentFee.lp;
+        currentFee.lp = lpFeePercent;
+        fee = currentFee;
+
+        emit UpdateLpFeePercent(lpFeePercent, previousFee);
+    }
+
+    function setDevFeePercent(uint8 devFeePercent) external onlyOwner {
+        FeePercent memory currentFee = fee;
+        uint8 totalFeePercent = currentFee.marketing + currentFee.lp + currentFee.charity + devFeePercent;
+        require(totalFeePercent <= maxFeePercent, "Total fee percent cannot be greater than maxFeePercent");
+        uint8 previousFee = currentFee.dev;
+        currentFee.dev = devFeePercent;
+        fee = currentFee;
+
+        emit UpdateDevFeePercent(devFeePercent, previousFee);
+    }
+
+    function setMarketingFeePercent(uint8 marketingFeePercent) external onlyOwner {
+        FeePercent memory currentFee = fee;
+        uint8 totalFeePercent = currentFee.lp + currentFee.dev + currentFee.charity + marketingFeePercent;
+        require(totalFeePercent <= maxFeePercent, "Total fee percent cannot be greater than maxFeePercent");
+        uint8 previousFee = currentFee.marketing;
+        currentFee.marketing = marketingFeePercent;
+        fee = currentFee;
+
+        emit UpdateMarketingFeePercent(marketingFeePercent, previousFee);
+    }
+
+    function setCharityFeePercent(uint8 charityFeePercent) external onlyOwner {
+        FeePercent memory currentFee = fee;
+        uint8 totalFeePercent = currentFee.marketing + currentFee.dev + currentFee.lp + charityFeePercent;
+        require(totalFeePercent <= maxFeePercent, "Total fee percent cannot be greater than maxFeePercent");
+        uint8 previousFee = currentFee.charity;
+        currentFee.charity = charityFeePercent;
+        fee = currentFee;
+
+        emit UpdateCharityFeePercent(charityFeePercent, previousFee);
+    }
+
+    function togglePauseBuyingFee() external onlyOwner{
+        fee.enabledOnBuy = !fee.enabledOnBuy;
+        emit UpdateBuyingFee(fee.enabledOnBuy);
+    }
+
+    function togglePauseSellingFee() external onlyOwner{
+        fee.enabledOnSell = !fee.enabledOnSell;
+        emit UpdateSellingFee(fee.enabledOnSell);
+    }
+
+    function setLockTimeBetweenSells(uint256 newLockSeconds) external onlyOwner {
+        require(newLockSeconds <= 30, "Time between sells must be less than 30 seconds");
+        uint256 _previous = lockedBetweenSells;
+        lockedBetweenSells = newLockSeconds;
+        emit UpdateLockedBetweenSells(lockedBetweenSells, _previous);
+    }
+
+    function setLockTimeBetweenBuys(uint256 newLockSeconds) external onlyOwner {
+        require(newLockSeconds <= 30, "Time between buys be less than 30 seconds");
+        uint256 _previous = lockedBetweenBuys;
+        lockedBetweenBuys = newLockSeconds;
+        emit UpdateLockedBetweenBuys(lockedBetweenBuys, _previous);
+    }
+
+    function toggleAntiBot() external onlyOwner {
+        antiBot = !antiBot;
+        emit UpdateAntibot(antiBot);
+    }
+
+    function setMaxTxAmount(uint256 amount) external onlyOwner{
+        uint256 prevTxAmount = maxTxAmount;
+        maxTxAmount = amount;
+        emit UpdateMaxTxAmount(maxTxAmount, prevTxAmount);
+    }
+
+    function updateTokenPrice(uint256 _tokenPerBNB) external onlyOwner {
+        tokenPerBNB = _tokenPerBNB;
+        emit UpdateTokenPerBNB(tokenPerBNB);
+    }
+
+    function toggleSwapAndLiquify() external onlyOwner{
+        swapAndLiquifyEnabled = !swapAndLiquifyEnabled;
+        emit UpdateSwapAndLiquify(swapAndLiquifyEnabled);
+    }
+
+    function setSwapTolerancePercent(uint8 newTolerancePercent) external onlyOwner{
+        require(newTolerancePercent <= 100, "Swap tolerance percent cannot be more than 100");
+        uint8 swapTolerancePercentPrev = swapSlippageTolerancePercent;
+        swapSlippageTolerancePercent = newTolerancePercent;
+        emit UpdateSwapTolerancePercent(swapSlippageTolerancePercent, swapTolerancePercentPrev);
+    }
+
+    function setMinTokenToSwapAndLiquify(uint256 amount) external onlyOwner{
+        uint256 numTokensSellToAddToLiquidityPrev = numTokensSellToAddToLiquidity;
+        numTokensSellToAddToLiquidity = amount;
+        emit UpdateMinTokenToSwapAndLiquify(numTokensSellToAddToLiquidity, numTokensSellToAddToLiquidityPrev);
+    }
+
+    function withdrawResidualBNB(address newAddress) external onlyOwner() {
+        payable(newAddress).transfer(address(this).balance);
+    }
+
+    function withdrawResidualToken(address newAddress) external onlyOwner() {
+        _transfer(address(this), newAddress, _balances[address(this)]);
     }
 
     /**
@@ -76,214 +294,6 @@ contract Vemate is Context, IBEP20, Ownable {
         return _totalSupply;
     }
 
-    modifier onlyTokenHolder(){
-        require(msg.sender != 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4, 'You are owner');
-        _;
-    }
-
-    //calculate the unlocked token amount
-    function unlockTokenChecker() internal onlyTokenHolder{
-        
-        uint cumulitive = p[msg.sender].sub(s[msg.sender]);
-
-        //as the balances was adding the unlocked token amount with purchased token
-        //that's why I was subtracting the purchase amount
-        _balances[msg.sender] = _balances[msg.sender].sub(purchaseToken[msg.sender]);
-
-        unlockedToken = (purchaseToken[msg.sender].mul(cumulitive)).div(100);
-        _balances[msg.sender] = _balances[msg.sender].add(unlockedToken);
-
-        t[msg.sender] = t[msg.sender].sub(cumulitive);
-        s[msg.sender] = p[msg.sender];
-    }
-    
-    function reloadBalance() public onlyTokenHolder{
-        uint endTime = block.timestamp;
-        uint timeDifference = endTime.sub(purchasedTime[msg.sender]);
-        require(timeDifference > 0, 'There is no unlocked token to show');
-
-        if(timeDifference >  0 && timeDifference <= 1814400){
-            //from 1st day => first 10% of the token
-            if(s[msg.sender]==10){
-                _balances[msg.sender];
-            }
-            else{
-                p[msg.sender] = 10;
-                unlockTokenChecker();
-                if(lockYourBalance==true){
-                    _balancesForStaking[msg.sender] = purchaseToken[msg.sender];
-                    _balances[msg.sender] = 0;
-                    purchaseToken[msg.sender] = 0;
-                    lockYourBalance = false;
-                }
-                else{
-                    _balances[msg.sender];
-                }
-            }
-        }
-        else if(timeDifference > 1814400 && timeDifference <= 5184000){
-            //21 days => 20% of the token
-            if(s[msg.sender]==20){
-                _balances[msg.sender];
-            }
-            else{
-                p[msg.sender] = 20;
-                unlockTokenChecker();
-            }  
-        }
-        else if(timeDifference > 5184000 && timeDifference <= 7776000){
-            //60 days => 30% of the token
-            if(s[msg.sender]==30){
-                _balances[msg.sender];
-            }
-            else{
-                p[msg.sender] = 30;
-                unlockTokenChecker();
-            }
-        }
-        else if(timeDifference > 7776000 && timeDifference <= 10368000){
-            //90 days => 45% of the token
-            if(s[msg.sender]==45){
-                _balances[msg.sender];
-            }
-            else{
-                p[msg.sender] = 45;
-                unlockTokenChecker();
-            } 
-        }
-        else if(timeDifference > 10368000 && timeDifference <= 12960000){
-            //120 days => 55% of the token
-            if(s[msg.sender]==55){
-                _balances[msg.sender];
-            }
-            else{
-                p[msg.sender] = 55;
-                unlockTokenChecker();
-            } 
-        }
-        else if(timeDifference > 12960000 && timeDifference <= 15552000){
-            //150 days => 65% of the token
-            if(s[msg.sender]==65){
-                _balances[msg.sender];
-            }
-            else{
-                p[msg.sender] = 65;
-                unlockTokenChecker();
-            }
-        }
-        else if(timeDifference > 15552000 && timeDifference <= 18144000){
-            //180 days => 75% of the token
-            if(s[msg.sender]==75){
-                _balances[msg.sender];
-            }
-            else{
-                p[msg.sender] = 75;
-                unlockTokenChecker();
-            }
-        }
-        else if(timeDifference > 18144000 && timeDifference <= 20736000){
-            //210 days => 85% of the token
-            if(s[msg.sender]==85){
-                _balances[msg.sender];
-            }
-            else{
-                p[msg.sender] = 85;
-                unlockTokenChecker();
-            }
-        }
-        else if(timeDifference > 20736000 && timeDifference <= 31536000){
-            //240 days => 100% of the token
-            if(s[msg.sender]==100){
-                _balances[msg.sender];
-            }
-            else{
-                p[msg.sender] = 100;
-                unlockTokenChecker();
-            }
-        }
-    }
-
-    function getReward() public onlyTokenHolder{
-        uint endTime = block.timestamp;
-        uint timeDifference = endTime.sub(purchasedTime[msg.sender]);
-
-        if(timeDifference > 31536000){
-            if(_balancesForStaking[msg.sender] > 0){
-                if(rewardChecker == 0){
-                    uint bonus = (_balancesForStaking[msg.sender].mul(27)).div(100);
-                    _balancesForStaking[msg.sender] = _balancesForStaking[msg.sender].add(bonus);
-                    _balances[msg.sender] = _balancesForStaking[msg.sender];
-                    _balancesForStaking[msg.sender] = 0;
-                    rewardChecker = 1;
-                }
-                else{
-                    _balances[msg.sender];
-                }
-            }
-            else{
-                _balances[msg.sender];
-            }
-
-        }
-    }
-
-    /**
-    * to see the unlocked balance without changing state
-    */
-    function UnlockedTokenBalance(address account) public view onlyTokenHolder returns(uint256){
-        // mapping(address => uint256) private unlockBalance;
-        uint unlockBalance;
-        uint calculation_time = block.timestamp;
-        uint t_difference = calculation_time.sub(purchasedTime[account]);
-
-        if(t_difference >  0 && t_difference <= 1814400){
-            //from 1st day => first 10% of the token
-            unlockBalance = (purchaseToken[account].mul(10)).div(100);
-            return unlockBalance;
-        }
-        else if(t_difference > 1814400 && t_difference <= 5184000){
-            //21 days => 20% of the token
-            unlockBalance = (purchaseToken[account].mul(20)).div(100);
-            return unlockBalance; 
-        }
-        else if(t_difference > 5184000 && t_difference <= 7776000){
-            //60 days => 30% of the token
-            unlockBalance = (purchaseToken[account].mul(30)).div(100);
-            return unlockBalance;
-        }
-        else if(t_difference > 7776000 && t_difference <= 10368000){
-            //90 days => 45% of the token
-            unlockBalance = (purchaseToken[account].mul(45)).div(100);
-            return unlockBalance;
-        }
-        else if(t_difference > 10368000 && t_difference <= 12960000){
-            //120 days => 55% of the token
-            unlockBalance = (purchaseToken[account].mul(55)).div(100);
-            return unlockBalance; 
-        }
-        else if(t_difference > 12960000 && t_difference <= 15552000){
-            //150 days => 65% of the token
-            unlockBalance = (purchaseToken[account].mul(65)).div(100);
-            return unlockBalance;
-        }
-        else if(t_difference > 15552000 && t_difference <= 18144000){
-            //180 days => 75% of the token
-            unlockBalance = (purchaseToken[account].mul(75)).div(100);
-            return unlockBalance;
-        }
-        else if(t_difference > 18144000 && t_difference <= 20736000){
-            //210 days => 85% of the token
-            unlockBalance = (purchaseToken[account].mul(85)).div(100);
-            return unlockBalance;
-        }
-        else if(t_difference > 20736000 && t_difference <= 31536000){
-            //240 days => 100% of the token
-            unlockBalance = (purchaseToken[account].mul(100)).div(100);
-            return unlockBalance;
-        }
-
-    }
-    
     /**
     * @dev See {BEP20-balanceOf}.
     */
@@ -300,35 +310,8 @@ contract Vemate is Context, IBEP20, Ownable {
     * - the caller must have a balance of at least `amount`.
     */
     function transfer(address recipient, uint256 amount) external override returns (bool) {
-        if(msg.sender == 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4){
-            //for owner of the vemate
-
-            _transfer(_msgSender(), recipient, amount);
-
-            t[recipient] = 100;
-            s[recipient] = 0;
-            p[recipient] = 0;
-
-            purchaseToken[recipient] = amount;
-            purchasedTime[recipient] = block.timestamp;
-            return true;
-        }else{
-            //for token holder
-            reloadBalance();
-            getReward();
-            if(recipient == 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4){
-                uint256 lpTax = amount.mul(5).div(100);
-                uint256 checkBalance = _balances[_msgSender()].add(lpTax);
-                require(checkBalance > _balances[_msgSender()],'Balances are low');
-                _transfer(_msgSender(), recipient, amount);
-                _transfer(_msgSender(), recipient, lpTax);
-                return true;
-
-            }else{
-                _transfer(_msgSender(), recipient, amount);
-                return true;
-            }   
-        }
+        _transfer(_msgSender(), recipient, amount);
+        return true;
     }
 
     /**
@@ -362,9 +345,12 @@ contract Vemate is Context, IBEP20, Ownable {
     * - the caller must have allowance for `sender`'s tokens of at least
     * `amount`.
     */
-    function transferFrom(address sender, address recipient, uint256 amount) external override onlyTokenHolder returns (bool){
+    function transferFrom(address sender, address recipient, uint256 amount) external override returns (bool) {
         _transfer(sender, recipient, amount);
-        _approve(sender, _msgSender(), _allowances[sender][_msgSender()].sub(amount, "BEP20: transfer amount exceeds allowance"));
+        uint256 _currentAllowance = _allowances[sender][_msgSender()];
+        // this check is not mandatory. but to return exact overflow reason we can use it.
+        require(_currentAllowance >= amount, "BEP20: transfer amount exceeds allowance");
+        _approve(sender, _msgSender(), _currentAllowance - amount);
         return true;
     }
 
@@ -381,7 +367,7 @@ contract Vemate is Context, IBEP20, Ownable {
     * - `spender` cannot be the zero address.
     */
     function increaseAllowance(address spender, uint256 addedValue) public returns (bool) {
-        _approve(_msgSender(), spender, _allowances[_msgSender()][spender].add(addedValue));
+        _approve(_msgSender(), spender, _allowances[_msgSender()][spender] + addedValue);
         return true;
     }
 
@@ -400,20 +386,10 @@ contract Vemate is Context, IBEP20, Ownable {
     * `subtractedValue`.
     */
     function decreaseAllowance(address spender, uint256 subtractedValue) public returns (bool) {
-        _approve(_msgSender(), spender, _allowances[_msgSender()][spender].sub(subtractedValue, "BEP20: decreased allowance below zero"));
-        return true;
-    }
-
-    /**
-    * @dev Creates `amount` tokens and assigns them to `msg.sender`, increasing
-    * the total supply.
-    *
-    * Requirements
-    *
-    * - `msg.sender` must be the token owner
-    */
-    function mint(uint256 amount) public onlyOwner returns (bool) {
-        _mint(_msgSender(), amount);
+        uint256 _currentAllowance = _allowances[_msgSender()][spender];
+        // this check is not mandatory. but to return exact overflow reason we can use it.
+        require(_currentAllowance >= subtractedValue, "BEP20: decreased allowance below zero");
+        _approve(_msgSender(), spender, _currentAllowance - subtractedValue);
         return true;
     }
 
@@ -434,47 +410,147 @@ contract Vemate is Context, IBEP20, Ownable {
     function _transfer(address sender, address recipient, uint256 amount) internal {
         require(sender != address(0), "BEP20: transfer from the zero address");
         require(recipient != address(0), "BEP20: transfer to the zero address");
-        require(_balances[sender] > amount, "Insufficient amount!");
+        require(amount > 0, "Transfer amount must be greater than zero");
+        require(_balances[sender] >= amount, "BEP20: transfer amount exceeds balance");
 
-        _balances[sender] = _balances[sender].sub(amount, "BEP20: transfer amount exceeds balance");
-        _balances[recipient] = _balances[recipient].add(amount);
-        emit Transfer(sender, recipient, amount);
+        bool takeFee = false;
+
+        if (_isPrivileged[sender] || _isPrivileged[recipient]){
+            // takeFee already false. Do nothing and reduce gas fee.
+        } else if (recipient == uniswapV2Pair) { // sell : fee and restrictions for non-privileged wallet
+            require(amount <= maxTxAmount, "Amount larger than max tx amount!");
+            checkSwapFrequency(sender);
+            if (fee.enabledOnSell){
+                takeFee = true;
+                if (shouldSwap()){
+                    swapAndLiquify(numTokensSellToAddToLiquidity);
+                }
+            }
+        } else if (sender == uniswapV2Pair){  // buy : fee and restrictions for non-privileged wallet
+            require(amount <= maxTxAmount, "Amount larger than max tx amount!");
+            checkSwapFrequency(recipient);
+            if (fee.enabledOnBuy){
+                takeFee = true;
+                if (shouldSwap()){
+                    swapAndLiquify(numTokensSellToAddToLiquidity);
+                }
+            }
+        }
+        _tokenTransfer(sender, recipient, amount, takeFee);
     }
 
-    /** @dev Creates `amount` tokens and assigns them to `account`, increasing
-    * the total supply.
-    *
-    * Emits a {Transfer} event with `from` set to the zero address.
-    *
-    * Requirements
-    *
-    * - `to` cannot be the zero address.
-    */
-    function _mint(address account, uint256 amount) internal {
-        require(account != address(0), "BEP20: mint to the zero address");
+    function shouldSwap() private view returns(bool)  {
+        uint256 contractTokenBalance = _balances[(address(this))];
+        bool overMinTokenBalance = contractTokenBalance >= numTokensSellToAddToLiquidity;
 
-        _totalSupply = _totalSupply.add(amount);
-        _balances[account] = _balances[account].add(amount);
-        emit Transfer(address(0), account, amount);
+        if (overMinTokenBalance && !inSwapAndLiquify && swapAndLiquifyEnabled) {
+            return true;
+        }
+        return false;
     }
 
-    /**
-    * @dev Destroys `amount` tokens from `account`, reducing the
-    * total supply.
-    *
-    * Emits a {Transfer} event with `to` set to the zero address.
-    *
-    * Requirements
-    *
-    * - `account` cannot be the zero address.
-    * - `account` must have at least `amount` tokens.
-    */
-    function _burn(address account, uint256 amount) internal {
-        require(account != address(0), "BEP20: burn from the zero address");
+    // to recieve ETH from uniswapV2Router when swapping
+    receive() external payable {}
 
-        _balances[account] = _balances[account].sub(amount, "BEP20: burn amount exceeds balance");
-        _totalSupply = _totalSupply.sub(amount);
-        emit Transfer(account, address(0), amount);
+    function swapAndLiquify(uint256 amount) private lockTheSwap {
+        // capture the contract's current ETH balance.
+        // this is so that we can capture exactly the amount of ETH that the
+        // swap creates, and not make the liquidity event include any ETH that
+        // has been manually sent to the contract
+        uint256 initialBalance = address(this).balance;
+
+        // We need to collect Bnb from the token amount
+        // dev + marketing + charity will be send to the wallet
+        // the rest(for liquid pool) will be divided into two and be used to addLiquidity
+        uint8 totalFee = fee.dev + fee.lp + fee.charity + fee.marketing;
+        uint256 lpHalf =  (amount*fee.lp)/(totalFee*2);
+
+        // swap dev + marketing + charity + lpHalf
+        swapTokensForEth(amount - lpHalf);
+
+        // how much ETH did we just swap into?
+        uint256 receivedBnb = address(this).balance - initialBalance;
+
+        // get the Bnb amount for lpHalf
+        uint256 lpHalfBnbShare = (receivedBnb*fee.lp)/(totalFee*2 - fee.lp); // to avoid possible floating point error
+        uint256 devBnbShare = (receivedBnb*2*fee.dev)/(totalFee*2 - fee.lp);
+        uint256 marketingBnbShare = (receivedBnb*2*fee.marketing)/(totalFee*2 - fee.lp);
+        uint256 charityBnbShare = (receivedBnb*2*fee.charity)/(totalFee*2 - fee.lp);
+
+
+        // feeWallets.lp.transfer(lpHalfBnbShare);
+        feeWallets.dev.transfer(devBnbShare);
+        feeWallets.marketing.transfer(marketingBnbShare);
+        feeWallets.charity.transfer(charityBnbShare);
+
+        addLiquidity(lpHalf, lpHalfBnbShare);
+    }
+
+    function swapTokensForEth(uint256 tokenAmount) private {
+        // generate the uniswap pair path of token -> weth
+        address[] memory path = new address[](2);
+        path[0] = address(this);
+        path[1] = uniswapV2Router.WETH();
+
+        _approve(address(this), address(uniswapV2Router), tokenAmount);
+
+        uint ethAmount = tokenAmount/tokenPerBNB;
+
+        uint minETHAmount = ethAmount - (ethAmount* swapSlippageTolerancePercent)/100;
+
+        // make the swap
+        try uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            tokenAmount,
+            minETHAmount, // this will protect sandwich attack
+            path,
+            address(this),
+            getCurrentTime()
+        ){
+            emit SwapAndLiquifyStatus("Success");
+        }catch {
+            emit SwapAndLiquifyStatus("Failed");
+        }
+    }
+
+    function addLiquidity(uint256 tokenAmount, uint256 ethAmount) private {
+        // require(msg.value>0, "No eth found in this account");
+        // approve token transfer to cover all possible scenarios
+        _approve(address(this), address(uniswapV2Router), tokenAmount);
+
+        uint minETHAmount = ethAmount - (ethAmount* swapSlippageTolerancePercent)/100;
+        uint minTokenAmount = tokenAmount - (tokenAmount* swapSlippageTolerancePercent)/100;
+
+        // add the liquidity
+        uniswapV2Router.addLiquidityETH{value: ethAmount}(
+            address(this),
+            tokenAmount,
+            minTokenAmount,
+            minETHAmount,
+            address(this),
+            getCurrentTime()
+        );
+        emit LiquidityAdded(tokenAmount, ethAmount);
+    }
+
+    function _tokenTransfer(
+        address sender,
+        address recipient,
+        uint256 amount,
+        bool takeFee
+    ) internal {
+        uint256 transferAmount = amount;
+        if (takeFee) {
+            uint8 totalFeePercent = fee.lp + fee.marketing + fee.charity + fee.dev;
+            uint256 totalFee = (amount*totalFeePercent)/100;
+
+            // send the fee token to the contract address.
+            _balances[address(this)] = _balances[address(this)] + totalFee;
+            transferAmount = transferAmount - totalFee;
+            emit Transfer(sender, address(this), totalFee);
+        }
+        _balances[sender] = _balances[sender] - amount;
+        _balances[recipient] = _balances[recipient] + transferAmount;
+        emit Transfer(sender, recipient, transferAmount);
     }
 
     /**
@@ -498,14 +574,44 @@ contract Vemate is Context, IBEP20, Ownable {
         emit Approval(owner, spender, amount);
     }
 
-    /**
-    * @dev Destroys `amount` tokens from `account`.`amount` is then deducted
-    * from the caller's allowance.
-    *
-    * See {_burn} and {_approve}.
-    */
-    function _burnFrom(address account, uint256 amount) internal {
-        _burn(account, amount);
-        _approve(account, _msgSender(), _allowances[account][_msgSender()].sub(amount, "BEP20: burn amount exceeds allowance"));
+    function checkSwapFrequency(address whom) internal{
+        uint currentTime = getCurrentTime();
+        if (antiBot) {
+            uint lastSwapTime = _addressToLastSwapTime[whom];
+            require(currentTime - lastSwapTime >= lockedBetweenSells, "Lock time has not been released from last swap"
+            );
+        }
+        _addressToLastSwapTime[whom] = currentTime;
     }
+
+    function getCurrentTime() internal virtual view returns(uint){
+        return block.timestamp;
+    }
+
+    event UpdatePancakeRouter(IUniswapV2Router02 router, address pair);
+    event UpdateDevWallet(address current, address previous);
+    event UpdateMarketingWallet(address current, address previous);
+    event UpdateCharityWallet(address current, address previous);
+
+    event UpdateLpFeePercent(uint8 current, uint8 previous);
+    event UpdateDevFeePercent(uint8 current, uint8 previous);
+    event UpdateMarketingFeePercent(uint8 current, uint8 previous);
+    event UpdateCharityFeePercent(uint8 current, uint8 previous);
+
+    event UpdateSellingFee(bool isEnabled);
+    event UpdateBuyingFee(bool isEnabled);
+
+    event UpdateLockedBetweenBuys(uint256 cooldown, uint256 previous);
+    event UpdateLockedBetweenSells(uint256 cooldown, uint256 previous);
+
+    event UpdateAntibot(bool isEnabled);
+
+    event UpdateMaxTxAmount(uint256 maxTxAmount, uint256 prevTxAmount);
+
+    event UpdateTokenPerBNB(uint256 tokenPerBNB);
+    event UpdateSwapAndLiquify(bool swapAndLiquifyEnabled);
+    event UpdateSwapTolerancePercent(uint8 swapTolerancePercent, uint8 swapTolerancePercentPrev);
+    event UpdateMinTokenToSwapAndLiquify(uint256 numTokensSellToAddToLiquidity, uint256 numTokensSellToAddToLiquidityPrev);
+    event LiquidityAdded(uint256 tokenAmount, uint256 bnbAmount);
+    event SwapAndLiquifyStatus(string status);
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.12;
+pragma solidity 0.8.9;
 
 import "@pancakeswap/pancake-swap-lib/contracts/utils/FixedPoint.sol";
 import "https://github.com/sadiq1971/sol-contracts/blob/main/lib/Ownable.sol";
@@ -35,7 +35,7 @@ contract Vemate is  IBEP20, Ownable{
     IUniswapV2Router02 public uniswapV2Router;
 
     string private  _name = "Vemate";
-    string private _symbol = "VMC";
+    string private _symbol = "V";
 
     // Pack variables together for gas optimization
     uint8   private _decimals = 18;

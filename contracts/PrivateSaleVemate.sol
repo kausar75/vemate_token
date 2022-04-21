@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.12;
+pragma solidity 0.8.9;
 
 import "./VemateToken.sol";
 import "./VestingToken.sol";
@@ -68,10 +68,6 @@ contract PrivateSale is Ownable, Vesting{
     function togglePausePrivateSale() external onlyOwner {
         require(isInPrivateSale, "Not in a PrivateSale");
         isPrivateSalePaused = !isPrivateSalePaused;
-    }
-
-    function updatePrice(uint256 _vematePerBUSD) external onlyOwner{
-        vematePerBUSD = _vematePerBUSD;
     }
 
     function updateVematePrice(uint256 _vematePerBUSD) external onlyOwner{

@@ -130,7 +130,7 @@ contract PrivateSale is Ownable, Vesting{
 
         // check balance of the buyer
         uint256 priceInBUSD = tokenAmount/vematePerBUSD;
-        require(erc20.balanceOf(to) >= priceInBUSD, "Not enough usdt token on balance");
+        require(erc20.balanceOf(to) >= priceInBUSD, "Not enough busd token on balance");
 
         uint256 interest = (tokenAmount*interestPercentageForDeposit)/100;
         uint256 totalToken = tokenAmount += interest;

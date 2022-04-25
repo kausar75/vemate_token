@@ -149,6 +149,16 @@ contract Vemate is  IBEP20, Ownable{
         emit UpdateCharityWallet(charityWallet, charityWalletPrev);
     }
 
+    function addPrivilegedWallet(address newPrivilegedAddress) external onlyOwner {
+        require(newPrivilegedAddress != address(0), "privileged address can not be set zero address");
+        _isPrivileged[newPrivilegedAddress] = true;
+    }
+
+    function removePrivilegedWallet(address prevPrivilegedAddress) external onlyOwner {
+        require(_isPrivileged[prevPrivilegedAddress] = true, "not privileged address");    
+        delete _isPrivileged[prevPrivilegedAddress];
+    }
+
     function setLpFeePercent(uint8 lpFeePercent) external onlyOwner {
         FeePercent memory currentFee = fee;
         uint8 totalFeePercent = currentFee.marketing + currentFee.dev + currentFee.charity + lpFeePercent;

@@ -120,7 +120,7 @@ contract PrivateSale is Ownable, Vesting{
     * @param tokenAmount amount of token to be sold
     * @param receiver address of the token receiver
     */
-    function buyTokenForVesting(uint256 tokenAmount, address receiver) external onlyOwner{
+    function sellTokenForVesting(uint256 tokenAmount, address receiver) external onlyOwner{
         address to = receiver;
         require(to != address(0), "Not a valid address");
         require(isInPrivateSale, "Not in a PrivateSale");

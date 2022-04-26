@@ -151,12 +151,17 @@ contract Vemate is  IBEP20, Ownable{
 
     function addPrivilegedWallet(address newPrivilegedAddress) external onlyOwner {
         require(newPrivilegedAddress != address(0), "privileged address can not be set zero address");
+        require(_isPrivileged[newPrivilegedAddress] != true, "already added to the whitelist");
         _isPrivileged[newPrivilegedAddress] = true;
+
+        emit PrivilegedWallet(newPrivilegedAddress, true);
     }
 
     function removePrivilegedWallet(address prevPrivilegedAddress) external onlyOwner {
-        require(_isPrivileged[prevPrivilegedAddress] = true, "not privileged address");    
+        require(_isPrivileged[prevPrivilegedAddress] != false, "not privileged address");    
         delete _isPrivileged[prevPrivilegedAddress];
+
+        emit PrivilegedWallet(prevPrivilegedAddress, false);
     }
 
     function privilegedAddress(address existingPrivilegedAddress) external onlyOwner view returns(bool){
@@ -606,6 +611,8 @@ contract Vemate is  IBEP20, Ownable{
     event UpdateDevWallet(address current, address previous);
     event UpdateMarketingWallet(address current, address previous);
     event UpdateCharityWallet(address current, address previous);
+
+    event PrivilegedWallet(address _privilegedAddress, bool isPrivileged);
 
     event UpdateLpFeePercent(uint8 current, uint8 previous);
     event UpdateDevFeePercent(uint8 current, uint8 previous);

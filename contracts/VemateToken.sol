@@ -159,6 +159,10 @@ contract Vemate is  IBEP20, Ownable{
         delete _isPrivileged[prevPrivilegedAddress];
     }
 
+    function privilegedAddress(address existingPrivilegedAddress) external onlyOwner view returns(bool){
+        return _isPrivileged[existingPrivilegedAddress];
+    }
+
     function setLpFeePercent(uint8 lpFeePercent) external onlyOwner {
         FeePercent memory currentFee = fee;
         uint8 totalFeePercent = currentFee.marketing + currentFee.dev + currentFee.charity + lpFeePercent;

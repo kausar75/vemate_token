@@ -10,9 +10,15 @@ contract PrivateSale is Ownable, Vesting{
     Vemate immutable private vemate;
     IERC20 immutable private erc20;
 
+    uint8 private _decimals = 18;
+    uint8 public interestPercentageForDeposit = 27;
+
     bool public isInPrivateSale;
     bool public isPrivateSaleDone;
     bool public isPrivateSalePaused;
+    bool public isInPrivatePhase;
+
+    mapping (address => bool) private _isWhitelistedAddress;
 
     uint256 private constant DAY = 24 * 60 * 60;
     uint256 private constant MONTH = DAY * 30;
@@ -26,10 +32,6 @@ contract PrivateSale is Ownable, Vesting{
 
     uint256 public vematePerBUSD = 1000;
 
-    uint8 private _decimals = 18;
-    uint8 public interestPercentageForDeposit = 27;
-
-
     constructor(address payable vemateToken, address erc20Token){
         require(vemateToken != address(0x0));
         require(erc20Token != address(0x0));
@@ -41,6 +43,7 @@ contract PrivateSale is Ownable, Vesting{
         isInPrivateSale = false;
         isPrivateSaleDone = false;
         isPrivateSalePaused = true;
+        isInPrivatePhase = true;
     }
 
     function startPrivateSale(uint256 minTokenPerSale, uint256 maxTokenPerSale, uint256 initialTokenUnlkTime, uint8 _interestPercentageForDeposit) external onlyOwner {
@@ -74,6 +77,39 @@ contract PrivateSale is Ownable, Vesting{
         vematePerBUSD = _vematePerBUSD;
     }
 
+    function togglePrivatePhase() external onlyOwner{
+        require(isInPrivatePhase, "Not in Private Phase");
+        isInPrivatePhase = !isInPrivatePhase;
+    }
+
+    /**
+    * @notice addWhitelistAddress is to add the address to the whitelist.
+    * @param _address address of buyer
+    */
+
+    function addWhitelistAddress(address _address)
+    external
+    onlyOwner{
+        require(_isWhitelistedAddress[_address] != true);
+        _isWhitelistedAddress[_address] = true;
+        emit Whitelisted(_address, true);
+    }
+
+    function removeWhitelistAddress(address _address)
+    external
+    onlyOwner{
+        require(_isWhitelistedAddress[_address] != false);
+        _isWhitelistedAddress[_address] = false;
+        emit Whitelisted(_address, false);
+    }
+
+    function isWhitelisted(address _address)
+    public
+    view
+    returns (bool){
+        return _isWhitelistedAddress[_address];
+    }
+
     /**
     * @notice buyTokenForVesting is to buy token. token won't be sent to buyers wallet immediately, rather it will be unlock gradually and buyers need to claim it.
     * @param tokenAmount amount of token to be sold
@@ -86,11 +122,13 @@ contract PrivateSale is Ownable, Vesting{
         require(tokenAmount >= minimumPrivateSaleToken, "Token is less than minimum");
         require(tokenAmount <= maximumPrivateSaleToken, "Token is greater than maximum");
         require(getAmountLeftForPrivateSale()>= tokenAmount, "Not enough amount left for sell");
+        if (isInPrivatePhase){
+            require(isWhitelisted(to) != false, "Not whitelisted");
+        }
 
         // check balance of the buyer
         uint256 priceInBUSD = tokenAmount/vematePerBUSD;
         require(erc20.balanceOf(to) >= priceInBUSD, "Not enough busd token on balance");
-
 
 
         uint256 time = getCurrentTime();
@@ -113,7 +151,7 @@ contract PrivateSale is Ownable, Vesting{
         totalAmountInVesting += tokenAmount;
         totalSoldToken += tokenAmount;
         erc20.transferFrom(to, address(this), priceInBUSD);
-    }
+    }  
 
     /**
     * @notice sellTokenForVesting is to buy token. token won't be sent to buyers wallet immediately, rather it will be unlock gradually and buyers need to claim it.
@@ -128,7 +166,9 @@ contract PrivateSale is Ownable, Vesting{
         require(tokenAmount >= minimumPrivateSaleToken, "Token is less than minimum");
         require(tokenAmount <= maximumPrivateSaleToken, "Token is greater than maximum");
         require(getAmountLeftForPrivateSale()>= tokenAmount, "Not enough amount left for sell");
-
+        if (isInPrivatePhase){
+            require(isWhitelisted(to) != false, "Not whitelisted");
+        }
 
         uint256 time = getCurrentTime();
         // unlock 10% on initialTokenUnlockTime
@@ -164,6 +204,9 @@ contract PrivateSale is Ownable, Vesting{
         require(tokenAmount >= minimumPrivateSaleToken, "Token is less than minimum");
         require(tokenAmount <= maximumPrivateSaleToken, "Token is greater than maximum");
         require(getAmountLeftForPrivateSale()>= tokenAmount, "Not enough amount left for sell");
+        if (isInPrivatePhase){
+            require(isWhitelisted(to) != false, "Not whitelisted");
+        }
 
         // check balance of the buyer
         uint256 priceInBUSD = tokenAmount/vematePerBUSD;
@@ -195,7 +238,10 @@ contract PrivateSale is Ownable, Vesting{
         require(tokenAmount >= minimumPrivateSaleToken, "Token is less than minimum");
         require(tokenAmount <= maximumPrivateSaleToken, "Token is greater than maximum");
         require(getAmountLeftForPrivateSale()>= tokenAmount, "Not enough amount left for sell");
-
+        if (isInPrivatePhase){
+            require(isWhitelisted(to) != false, "Not whitelisted");
+        }
+        
         uint256 interest = (tokenAmount*interestPercentageForDeposit)/100;
         uint256 totalToken = tokenAmount += interest;
 
@@ -239,6 +285,8 @@ contract PrivateSale is Ownable, Vesting{
         vemate.transfer(_msgSender(), amount);
         totalAmountInVesting -= amount;
     }
+
+    event Whitelisted(address indexed account, bool isWhitelisted);
 
     receive() external payable {}
 }

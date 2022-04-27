@@ -87,12 +87,16 @@ contract PrivateSale is Ownable, Vesting{
     * @param _address address of buyer
     */
 
-    function addWhitelistAddress(address _address)
+    function addWhitelistAddress(address[] memory _address)
     external
     onlyOwner{
-        require(_isWhitelistedAddress[_address] != true);
-        _isWhitelistedAddress[_address] = true;
-        emit Whitelisted(_address, true);
+        uint256 len = _address.length;
+
+        for(uint256 i=0; i<len ; i++){
+            require(_isWhitelistedAddress[_address[i]] != true);
+            _isWhitelistedAddress[_address[i]] = true;
+            emit Whitelisted(_address[i], true);
+        }
     }
 
     function removeWhitelistAddress(address _address)
@@ -241,7 +245,7 @@ contract PrivateSale is Ownable, Vesting{
         if (isInPrivatePhase){
             require(isWhitelisted(to) != false, "Not whitelisted");
         }
-        
+
         uint256 interest = (tokenAmount*interestPercentageForDeposit)/100;
         uint256 totalToken = tokenAmount += interest;
 

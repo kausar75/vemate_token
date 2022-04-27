@@ -151,7 +151,7 @@ contract Vemate is  IBEP20, Ownable{
 
     function addPrivilegedWallet(address newPrivilegedAddress) external onlyOwner {
         require(newPrivilegedAddress != address(0), "privileged address can not be set zero address");
-        require(_isPrivileged[newPrivilegedAddress] != true, "already added to the whitelist");
+        require(_isPrivileged[newPrivilegedAddress] != true, "already privileged");
         _isPrivileged[newPrivilegedAddress] = true;
 
         emit PrivilegedWallet(newPrivilegedAddress, true);

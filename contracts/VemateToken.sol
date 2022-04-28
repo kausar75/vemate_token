@@ -164,7 +164,7 @@ contract Vemate is  IBEP20, Ownable{
         emit PrivilegedWallet(prevPrivilegedAddress, false);
     }
 
-    function privilegedAddress(address existingPrivilegedAddress) external onlyOwner view returns(bool){
+    function privilegedAddress(address existingPrivilegedAddress) public view returns(bool){
         return _isPrivileged[existingPrivilegedAddress];
     }
 

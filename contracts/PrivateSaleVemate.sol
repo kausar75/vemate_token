@@ -16,7 +16,6 @@ contract PrivateSale is Ownable, Vesting{
     bool public isInPrivateSale;
     bool public isPrivateSaleDone;
     bool public isPrivateSalePaused;
-    bool public isInPrivatePhase;
 
     mapping (address => bool) private _isWhitelistedAddress;
 
@@ -43,7 +42,6 @@ contract PrivateSale is Ownable, Vesting{
         isInPrivateSale = false;
         isPrivateSaleDone = false;
         isPrivateSalePaused = true;
-        isInPrivatePhase = true;
     }
 
     function startPrivateSale(uint256 minTokenPerSale, uint256 maxTokenPerSale, uint256 initialTokenUnlkTime, uint8 _interestPercentageForDeposit) external onlyOwner {
@@ -77,43 +75,6 @@ contract PrivateSale is Ownable, Vesting{
         vematePerBUSD = _vematePerBUSD;
     }
 
-    function togglePrivatePhase() external onlyOwner{
-        require(isInPrivatePhase, "Not in Private Phase");
-        isInPrivatePhase = !isInPrivatePhase;
-    }
-
-    /**
-    * @notice addWhitelistAddress is to add the address to the whitelist.
-    * @param _address address of buyer
-    */
-
-    function addWhitelistAddress(address[] memory _address)
-    external
-    onlyOwner{
-        uint256 len = _address.length;
-
-        for(uint256 i=0; i<len ; i++){
-            require(_isWhitelistedAddress[_address[i]] != true);
-            _isWhitelistedAddress[_address[i]] = true;
-            emit Whitelisted(_address[i], true);
-        }
-    }
-
-    function removeWhitelistAddress(address _address)
-    external
-    onlyOwner{
-        require(_isWhitelistedAddress[_address] != false);
-        _isWhitelistedAddress[_address] = false;
-        emit Whitelisted(_address, false);
-    }
-
-    function isWhitelisted(address _address)
-    public
-    view
-    returns (bool){
-        return _isWhitelistedAddress[_address];
-    }
-
     /**
     * @notice buyTokenForVesting is to buy token. token won't be sent to buyers wallet immediately, rather it will be unlock gradually and buyers need to claim it.
     * @param tokenAmount amount of token to be sold
@@ -126,31 +87,21 @@ contract PrivateSale is Ownable, Vesting{
         require(tokenAmount >= minimumPrivateSaleToken, "Token is less than minimum");
         require(tokenAmount <= maximumPrivateSaleToken, "Token is greater than maximum");
         require(getAmountLeftForPrivateSale()>= tokenAmount, "Not enough amount left for sell");
-        if (isInPrivatePhase){
-            require(isWhitelisted(to) != false, "Not whitelisted");
-        }
 
         // check balance of the buyer
         uint256 priceInBUSD = tokenAmount/vematePerBUSD;
         require(erc20.balanceOf(to) >= priceInBUSD, "Not enough busd token on balance");
 
-
         uint256 time = getCurrentTime();
-        // unlock 10% on initialTokenUnlockTime
-        createVestingSchedule(to, time, initialTokenUnlockTime, (tokenAmount*10)/100);
-        // unlock another 10% on 21 days after initialTokenUnlockTime
-        createVestingSchedule(to, time, initialTokenUnlockTime + (DAY*21), (tokenAmount*10)/100);
-        // unlock another 10% on 60 days after initialTokenUnlockTime
-        createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*2), (tokenAmount*10)/100);
-        // unlock 15% on 90 days after initialTokenUnlockTime
-        createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*3), (tokenAmount*15)/100);
+        //unlock 15% on initialTokenUnlockTime
+        createVestingSchedule(to, time, initialTokenUnlockTime, (tokenAmount*15)/100);
 
-        for (uint8 i = 1; i < 5; i++){
-            // unlock 10% on each month
-            createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*(3+i)), (tokenAmount*10)/100);
+        for (uint8 i = 1; i < 7; i++){
+            // unlock 12.5% on each month
+            createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*i), (tokenAmount*125)/1000);
         }
         // unlock last 15% on 8th month after initialTokenUnlockTime
-        createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*8), (tokenAmount*15)/100);
+        createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*7), (tokenAmount*10)/100);
 
         totalAmountInVesting += tokenAmount;
         totalSoldToken += tokenAmount;
@@ -170,26 +121,18 @@ contract PrivateSale is Ownable, Vesting{
         require(tokenAmount >= minimumPrivateSaleToken, "Token is less than minimum");
         require(tokenAmount <= maximumPrivateSaleToken, "Token is greater than maximum");
         require(getAmountLeftForPrivateSale()>= tokenAmount, "Not enough amount left for sell");
-        if (isInPrivatePhase){
-            require(isWhitelisted(to) != false, "Not whitelisted");
-        }
 
         uint256 time = getCurrentTime();
-        // unlock 10% on initialTokenUnlockTime
-        createVestingSchedule(to, time, initialTokenUnlockTime, (tokenAmount*10)/100);
-        // unlock another 10% on 21 days after initialTokenUnlockTime
-        createVestingSchedule(to, time, initialTokenUnlockTime + (DAY*21), (tokenAmount*10)/100);
-        // unlock another 10% on 60 days after initialTokenUnlockTime
-        createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*2), (tokenAmount*10)/100);
-        // unlock 15% on 90 days after initialTokenUnlockTime
-        createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*3), (tokenAmount*15)/100);
+         
+        //unlock 15% on initialTokenUnlockTime
+        createVestingSchedule(to, time, initialTokenUnlockTime, (tokenAmount*15)/100);
 
-        for (uint8 i = 1; i < 5; i++){
-            // unlock 10% on each month
-            createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*(3+i)), (tokenAmount*10)/100);
+        for (uint8 i = 1; i < 7; i++){
+            // unlock 12.5% on each month
+            createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*i), (tokenAmount*125)/1000);
         }
         // unlock last 15% on 8th month after initialTokenUnlockTime
-        createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*8), (tokenAmount*15)/100);
+        createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*7), (tokenAmount*10)/100);
 
         totalAmountInVesting += tokenAmount;
         totalSoldToken += tokenAmount;
@@ -197,7 +140,6 @@ contract PrivateSale is Ownable, Vesting{
 
     /**
     * @notice buyTokenForDeposit sells token to the buyers. buyers will be able to claim token with interest after deposit period.
-    * only 10% token will be unlocked immediately
     * @param tokenAmount amount of token to be sold
     */
     function buyTokenForDeposit(uint256 tokenAmount) external{
@@ -208,9 +150,6 @@ contract PrivateSale is Ownable, Vesting{
         require(tokenAmount >= minimumPrivateSaleToken, "Token is less than minimum");
         require(tokenAmount <= maximumPrivateSaleToken, "Token is greater than maximum");
         require(getAmountLeftForPrivateSale()>= tokenAmount, "Not enough amount left for sell");
-        if (isInPrivatePhase){
-            require(isWhitelisted(to) != false, "Not whitelisted");
-        }
 
         // check balance of the buyer
         uint256 priceInBUSD = tokenAmount/vematePerBUSD;
@@ -230,7 +169,6 @@ contract PrivateSale is Ownable, Vesting{
 
     /**
     * @notice sellTokenForDeposit sells token to the buyers. buyers will be able to claim token with interest after deposit period.
-    * only 10% token will be unlocked immediately
     * @param tokenAmount amount of token to be sold
     * @param receiver address of the token receiver
     */
@@ -242,9 +180,6 @@ contract PrivateSale is Ownable, Vesting{
         require(tokenAmount >= minimumPrivateSaleToken, "Token is less than minimum");
         require(tokenAmount <= maximumPrivateSaleToken, "Token is greater than maximum");
         require(getAmountLeftForPrivateSale()>= tokenAmount, "Not enough amount left for sell");
-        if (isInPrivatePhase){
-            require(isWhitelisted(to) != false, "Not whitelisted");
-        }
 
         uint256 interest = (tokenAmount*interestPercentageForDeposit)/100;
         uint256 totalToken = tokenAmount += interest;
@@ -289,8 +224,6 @@ contract PrivateSale is Ownable, Vesting{
         vemate.transfer(_msgSender(), amount);
         totalAmountInVesting -= amount;
     }
-
-    event Whitelisted(address indexed account, bool isWhitelisted);
 
     receive() external payable {}
 }

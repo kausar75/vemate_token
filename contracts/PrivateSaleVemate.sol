@@ -17,8 +17,6 @@ contract PrivateSale is Ownable, Vesting{
     bool public isPrivateSaleDone;
     bool public isPrivateSalePaused;
 
-    mapping (address => bool) private _isWhitelistedAddress;
-
     uint256 private constant DAY = 24 * 60 * 60;
     uint256 private constant MONTH = DAY * 30;
 
@@ -29,7 +27,7 @@ contract PrivateSale is Ownable, Vesting{
 
     uint256 public initialTokenUnlockTime;
 
-    uint256 public vematePerBUSD = 1000;
+    uint256 public vematePerBUSD = 60;
 
     constructor(address payable vemateToken, address erc20Token){
         require(vemateToken != address(0x0));

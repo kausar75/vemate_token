@@ -873,10 +873,12 @@ contract Vemate is  IBEP20, Ownable{
     }
 
     function withdrawResidualBNB(address newAddress) external onlyOwner() {
+        require(newAddress != address(0),  "address is empty");
         payable(newAddress).transfer(address(this).balance);
     }
 
     function withdrawResidualToken(address newAddress) external onlyOwner() {
+        require(newAddress != address(0),  "address is empty");
         _transfer(address(this), newAddress, _balances[address(this)]);
     }
 

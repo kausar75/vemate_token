@@ -862,7 +862,7 @@ contract Vemate is  IBEP20, Ownable{
     }
 
     function setSwapTolerancePercent(uint8 newTolerancePercent) external onlyOwner{
-        require(newTolerancePercent <= 100, "Swap tolerance percent cannot be more than 100");
+        require(newTolerancePercent <= 30, "Swap tolerance percent cannot be more than 30");
         uint8 swapTolerancePercentPrev = swapSlippageTolerancePercent;
         swapSlippageTolerancePercent = newTolerancePercent;
         emit UpdateSwapTolerancePercent(swapSlippageTolerancePercent, swapTolerancePercentPrev);

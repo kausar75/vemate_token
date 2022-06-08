@@ -641,16 +641,15 @@ contract Vemate is  IBEP20, Ownable{
 
     // Pack variables together for gas optimization
     uint8   private _decimals = 18;
-    uint8   public constant maxFeePercent = 5;
+    uint8   public constant MAX_FEE_PERCENT = 5;
     uint8   public swapSlippageTolerancePercent = 10;
     bool    private antiBot = true;
     bool    private inSwapAndLiquify;
     bool    public swapAndLiquifyEnabled = true;
-    uint32  private blockTimestampLast;
 
     address public uniswapV2Pair;
 
-    uint256 private _totalSupply = 150000000 * 10**_decimals; // 150 million;
+    uint256 private _totalSupply; // 150 million;
 
     mapping (address => uint256) private _balances;
     mapping (address => mapping (address => uint256)) private _allowances;
@@ -659,8 +658,8 @@ contract Vemate is  IBEP20, Ownable{
 
     uint256 public lockedBetweenSells = 60;
     uint256 public lockedBetweenBuys = 60;
-    uint256 public maxTxAmount = _totalSupply;
-    uint256 public numTokensSellToAddToLiquidity = 10000 * 10**_decimals; // 10 Token
+    uint256 public maxTxAmount;
+    uint256 public numTokensSellToAddToLiquidity; // 10 Token
 
     // We will depend on external price for the token to protect the sandwich attack.
     uint256 public tokenPerBNB = 23810;
@@ -696,6 +695,10 @@ contract Vemate is  IBEP20, Ownable{
         IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(router);
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory()).createPair(address(this), _uniswapV2Router.WETH());
         uniswapV2Router = _uniswapV2Router;
+
+        _totalSupply = 15*1000000 * 10**_decimals; // 150 million;
+        maxTxAmount = _totalSupply;
+        numTokensSellToAddToLiquidity = 10000 * 10**_decimals; // 10000 Token
 
         _balances[_msgSender()] = _totalSupply;
 
@@ -753,14 +756,14 @@ contract Vemate is  IBEP20, Ownable{
 
     function addPrivilegedWallet(address newPrivilegedAddress) external onlyOwner {
         require(newPrivilegedAddress != address(0), "privileged address can not be set zero address");
-        require(_isPrivileged[newPrivilegedAddress] != true, "already privileged");
+        require(!_isPrivileged[newPrivilegedAddress], "already privileged");
         _isPrivileged[newPrivilegedAddress] = true;
 
         emit PrivilegedWallet(newPrivilegedAddress, true);
     }
 
     function removePrivilegedWallet(address prevPrivilegedAddress) external onlyOwner {
-        require(_isPrivileged[prevPrivilegedAddress] != false, "not privileged address");
+        require(_isPrivileged[prevPrivilegedAddress], "not privileged address");
         delete _isPrivileged[prevPrivilegedAddress];
 
         emit PrivilegedWallet(prevPrivilegedAddress, false);
@@ -773,7 +776,7 @@ contract Vemate is  IBEP20, Ownable{
     function setLpFeePercent(uint8 lpFeePercent) external onlyOwner {
         FeePercent memory currentFee = fee;
         uint8 totalFeePercent = currentFee.marketing + currentFee.dev + currentFee.charity + lpFeePercent;
-        require(totalFeePercent <= maxFeePercent, "Total fee percent cannot be greater than maxFeePercent");
+        require(totalFeePercent <= MAX_FEE_PERCENT, "Total fee percent cannot be greater than maxFeePercent");
         uint8 previousFee = currentFee.lp;
         currentFee.lp = lpFeePercent;
         fee = currentFee;
@@ -784,7 +787,7 @@ contract Vemate is  IBEP20, Ownable{
     function setDevFeePercent(uint8 devFeePercent) external onlyOwner {
         FeePercent memory currentFee = fee;
         uint8 totalFeePercent = currentFee.marketing + currentFee.lp + currentFee.charity + devFeePercent;
-        require(totalFeePercent <= maxFeePercent, "Total fee percent cannot be greater than maxFeePercent");
+        require(totalFeePercent <= MAX_FEE_PERCENT, "Total fee percent cannot be greater than maxFeePercent");
         uint8 previousFee = currentFee.dev;
         currentFee.dev = devFeePercent;
         fee = currentFee;
@@ -795,7 +798,7 @@ contract Vemate is  IBEP20, Ownable{
     function setMarketingFeePercent(uint8 marketingFeePercent) external onlyOwner {
         FeePercent memory currentFee = fee;
         uint8 totalFeePercent = currentFee.lp + currentFee.dev + currentFee.charity + marketingFeePercent;
-        require(totalFeePercent <= maxFeePercent, "Total fee percent cannot be greater than maxFeePercent");
+        require(totalFeePercent <= MAX_FEE_PERCENT, "Total fee percent cannot be greater than maxFeePercent");
         uint8 previousFee = currentFee.marketing;
         currentFee.marketing = marketingFeePercent;
         fee = currentFee;
@@ -806,7 +809,7 @@ contract Vemate is  IBEP20, Ownable{
     function setCharityFeePercent(uint8 charityFeePercent) external onlyOwner {
         FeePercent memory currentFee = fee;
         uint8 totalFeePercent = currentFee.marketing + currentFee.dev + currentFee.lp + charityFeePercent;
-        require(totalFeePercent <= maxFeePercent, "Total fee percent cannot be greater than maxFeePercent");
+        require(totalFeePercent <= MAX_FEE_PERCENT, "Total fee percent cannot be greater than maxFeePercent");
         uint8 previousFee = currentFee.charity;
         currentFee.charity = charityFeePercent;
         fee = currentFee;
@@ -877,12 +880,16 @@ contract Vemate is  IBEP20, Ownable{
 
     function withdrawResidualBNB(address newAddress) external onlyOwner() {
         require(newAddress != address(0),  "address is empty");
-        payable(newAddress).transfer(address(this).balance);
+        uint amount = address(this).balance;
+        payable(newAddress).transfer(amount);
+        emit WithdrawBNB(amount);
     }
 
     function withdrawResidualToken(address newAddress) external onlyOwner() {
         require(newAddress != address(0),  "address is empty");
-        _transfer(address(this), newAddress, _balances[address(this)]);
+        uint amount = _balances[address(this)];
+        _transfer(address(this), newAddress, amount);
+        emit WithdrawToken(amount);
     }
 
     /**
@@ -943,8 +950,8 @@ contract Vemate is  IBEP20, Ownable{
     /**
     * @dev See {BEP20-allowance}.
     */
-    function allowance(address owner, address spender) external override view returns (uint256) {
-        return _allowances[owner][spender];
+    function allowance(address owner_, address spender) external override view returns (uint256) {
+        return _allowances[owner_][spender];
     }
 
     /**
@@ -1192,12 +1199,12 @@ contract Vemate is  IBEP20, Ownable{
     * - `owner` cannot be the zero address.
     * - `spender` cannot be the zero address.
     */
-    function _approve(address owner, address spender, uint256 amount) internal {
-        require(owner != address(0), "BEP20: approve from the zero address");
+    function _approve(address owner_, address spender, uint256 amount) internal {
+        require(owner_ != address(0), "BEP20: approve from the zero address");
         require(spender != address(0), "BEP20: approve to the zero address");
 
-        _allowances[owner][spender] = amount;
-        emit Approval(owner, spender, amount);
+        _allowances[owner_][spender] = amount;
+        emit Approval(owner_, spender, amount);
     }
 
     function checkSwapFrequency(address whom) internal{
@@ -1242,4 +1249,7 @@ contract Vemate is  IBEP20, Ownable{
     event UpdateMinTokenToSwapAndLiquify(uint256 numTokensSellToAddToLiquidity, uint256 numTokensSellToAddToLiquidityPrev);
     event LiquidityAdded(uint tokenAmount, uint bnbAmount, uint liquidity);
     event SwapAndLiquifyStatus(string status);
+
+    event WithdrawBNB(uint amount);
+    event WithdrawToken(uint amount);
 }

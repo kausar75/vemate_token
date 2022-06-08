@@ -1144,7 +1144,7 @@ contract Vemate is  IBEP20, Ownable{
         uint minTokenAmount = tokenAmount - (tokenAmount* swapSlippageTolerancePercent)/100;
 
         // add the liquidity
-        uniswapV2Router.addLiquidityETH{value: ethAmount}(
+        (uint amountToken, uint amountToken, uint liquidity) = uniswapV2Router.addLiquidityETH{value: ethAmount}(
             address(this),
             tokenAmount,
             minTokenAmount,
@@ -1152,7 +1152,7 @@ contract Vemate is  IBEP20, Ownable{
             address(this),
             getCurrentTime()
         );
-        emit LiquidityAdded(tokenAmount, ethAmount);
+        emit LiquidityAdded(amountToken, amountToken, liquidity);
     }
 
     function _tokenTransfer(
@@ -1237,6 +1237,6 @@ contract Vemate is  IBEP20, Ownable{
     event UpdateSwapAndLiquify(bool swapAndLiquifyEnabled);
     event UpdateSwapTolerancePercent(uint8 swapTolerancePercent, uint8 swapTolerancePercentPrev);
     event UpdateMinTokenToSwapAndLiquify(uint256 numTokensSellToAddToLiquidity, uint256 numTokensSellToAddToLiquidityPrev);
-    event LiquidityAdded(uint256 tokenAmount, uint256 bnbAmount);
+    event LiquidityAdded(uint tokenAmount, uint bnbAmount, uint liquidity);
     event SwapAndLiquifyStatus(string status);
 }

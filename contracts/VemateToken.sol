@@ -844,12 +844,14 @@ contract Vemate is  IBEP20, Ownable{
     }
 
     function setMaxTxAmount(uint256 amount) external onlyOwner{
+        require(0 < amount <=_totalSupply,"amount cannot be greater than total supply");
         uint256 prevTxAmount = maxTxAmount;
         maxTxAmount = amount;
         emit UpdateMaxTxAmount(maxTxAmount, prevTxAmount);
     }
 
     function updateTokenPrice(uint256 _tokenPerBNB) external onlyOwner {
+        require(_tokenPerBNB>0, "token per BNB cannot be zero");
         tokenPerBNB = _tokenPerBNB;
         emit UpdateTokenPerBNB(tokenPerBNB);
     }
@@ -867,6 +869,7 @@ contract Vemate is  IBEP20, Ownable{
     }
 
     function setMinTokenToSwapAndLiquify(uint256 amount) external onlyOwner{
+        require(amount>0, "amount cannot be zero");
         uint256 numTokensSellToAddToLiquidityPrev = numTokensSellToAddToLiquidity;
         numTokensSellToAddToLiquidity = amount;
         emit UpdateMinTokenToSwapAndLiquify(numTokensSellToAddToLiquidity, numTokensSellToAddToLiquidityPrev);

@@ -1172,6 +1172,7 @@ contract Vemate is  IBEP20, Ownable{
         bool takeFee
     ) internal {
         uint256 transferAmount = amount;
+        _balances[sender] = _balances[sender] - amount;
         if (takeFee) {
             uint8 totalFeePercent = fee.lp + fee.marketing + fee.charity + fee.dev;
             uint256 totalFee = (amount*totalFeePercent)/100;
@@ -1181,7 +1182,6 @@ contract Vemate is  IBEP20, Ownable{
             transferAmount = transferAmount - totalFee;
             emit Transfer(sender, address(this), totalFee);
         }
-        _balances[sender] = _balances[sender] - amount;
         _balances[recipient] = _balances[recipient] + transferAmount;
         emit Transfer(sender, recipient, transferAmount);
     }

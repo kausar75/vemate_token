@@ -659,7 +659,7 @@ contract Vemate is  IBEP20, Ownable{
     uint256 public lockedBetweenSells = 60;
     uint256 public lockedBetweenBuys = 60;
     uint256 public maxTxAmount;
-    uint256 public numTokensSellToAddToLiquidity; // 10 Token
+    uint256 public numTokensSellToAddToLiquidity; // 10000 Token
 
     // We will depend on external price for the token to protect the sandwich attack.
     uint256 public tokenPerBNB = 23810;

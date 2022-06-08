@@ -502,19 +502,19 @@ interface IUniswapV2Router01 {
         uint deadline
     ) external returns (uint[] memory amounts);
     function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline)
-    external
-    payable
-    returns (uint[] memory amounts);
+        external
+        payable
+        returns (uint[] memory amounts);
     function swapTokensForExactETH(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline)
-    external
-    returns (uint[] memory amounts);
+        external
+        returns (uint[] memory amounts);
     function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline)
-    external
-    returns (uint[] memory amounts);
+        external
+        returns (uint[] memory amounts);
     function swapETHForExactTokens(uint amountOut, address[] calldata path, address to, uint deadline)
-    external
-    payable
-    returns (uint[] memory amounts);
+        external
+        payable
+        returns (uint[] memory amounts);
 
     function quote(uint amountA, uint reserveA, uint reserveB) external pure returns (uint amountB);
     function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) external pure returns (uint amountOut);
@@ -583,7 +583,7 @@ interface IUniswapV2Pair {
     function nonces(address owner) external view returns (uint);
 
     function permit(address owner, address spender, uint value, uint deadline, uint8 v, bytes32 r, bytes32 s) external;
-
+    
     event Burn(address indexed sender, uint amount0, uint amount1, address indexed to);
     event Swap(
         address indexed sender,
@@ -636,11 +636,11 @@ contract Vemate is  IBEP20, Ownable{
 
     IUniswapV2Router02 public uniswapV2Router;
 
-    string private  _name = "Vemate";
-    string private _symbol = "V";
+    string private constant _NAME = "Vemate";
+    string private constant _SYMBOL = "V";
 
     // Pack variables together for gas optimization
-    uint8   private _decimals = 18;
+    uint8   private _DECIMALS = 18;
     uint8   public constant MAX_FEE_PERCENT = 5;
     uint8   public swapSlippageTolerancePercent = 10;
     bool    private antiBot = true;
@@ -649,7 +649,7 @@ contract Vemate is  IBEP20, Ownable{
 
     address public uniswapV2Pair;
 
-    uint256 private _totalSupply; // 150 million;
+    uint256 private constant TOTAL_SUPPLY; // 150 million;
 
     mapping (address => uint256) private _balances;
     mapping (address => mapping (address => uint256)) private _allowances;
@@ -677,7 +677,6 @@ contract Vemate is  IBEP20, Ownable{
         address payable marketingAddress,
         address payable charityAddress
     ){
-        require(owner() != address(0), "Owner must be set");
         require(router != address(0), "Router must be set");
         require(devAddress != address(0), "Dev wallet must be set");
         require(marketingAddress != address(0), "Marketing wallet must be set");
@@ -696,13 +695,13 @@ contract Vemate is  IBEP20, Ownable{
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory()).createPair(address(this), _uniswapV2Router.WETH());
         uniswapV2Router = _uniswapV2Router;
 
-        _totalSupply = 15*1000000 * 10**_decimals; // 150 million;
-        maxTxAmount = _totalSupply;
-        numTokensSellToAddToLiquidity = 10000 * 10**_decimals; // 10000 Token
+        TOTAL_SUPPLY = 15*1000000 * 10**_DECIMALS; // 150 million;
+        maxTxAmount = TOTAL_SUPPLY;
+        numTokensSellToAddToLiquidity = 10000 * 10**_DECIMALS; // 10000 Token
 
-        _balances[_msgSender()] = _totalSupply;
+        _balances[_msgSender()] = TOTAL_SUPPLY;
 
-        emit Transfer(address(0), msg.sender, _totalSupply);
+        emit Transfer(address(0), _msgSender(),TOTAL_SUPPLY);
     }
 
     function setRouterAddress(address newRouter) external onlyOwner {
@@ -847,7 +846,7 @@ contract Vemate is  IBEP20, Ownable{
     }
 
     function setMaxTxAmount(uint256 amount) external onlyOwner{
-        require(0 < amount <=_totalSupply,"amount cannot be greater than total supply");
+        require(0 < amount <=TOTAL_SUPPLY,"amount cannot be greater than total supply");
         uint256 prevTxAmount = maxTxAmount;
         maxTxAmount = amount;
         emit UpdateMaxTxAmount(maxTxAmount, prevTxAmount);
@@ -903,28 +902,28 @@ contract Vemate is  IBEP20, Ownable{
     * @dev Returns the token decimals.
     */
     function decimals() external override view returns (uint8) {
-        return _decimals;
+        return _DECIMALS;
     }
 
     /**
     * @dev Returns the token symbol.
     */
     function symbol() external override view returns (string memory) {
-        return _symbol;
+        return _SYMBOL;
     }
 
     /**
     * @dev Returns the token name.
     */
     function name() external override view returns (string memory) {
-        return _name;
+        return _NAME;
     }
 
     /**
     * @dev See {BEP20-totalSupply}.
     */
     function totalSupply() external override view returns (uint256) {
-        return _totalSupply;
+        return TOTAL_SUPPLY;
     }
 
     /**
@@ -983,7 +982,9 @@ contract Vemate is  IBEP20, Ownable{
         uint256 _currentAllowance = _allowances[sender][_msgSender()];
         // this check is not mandatory. but to return exact overflow reason we can use it.
         require(_currentAllowance >= amount, "BEP20: transfer amount exceeds allowance");
-        _approve(sender, _msgSender(), _currentAllowance - amount);
+        unchecked {
+            _approve(sender, _msgSender(), _currentAllowance - amount);
+        }
         return true;
     }
 
@@ -1022,7 +1023,9 @@ contract Vemate is  IBEP20, Ownable{
         uint256 _currentAllowance = _allowances[_msgSender()][spender];
         // this check is not mandatory. but to return exact overflow reason we can use it.
         require(_currentAllowance >= subtractedValue, "BEP20: decreased allowance below zero");
-        _approve(_msgSender(), spender, _currentAllowance - subtractedValue);
+        unchecked {
+            _approve(_msgSender(), spender, _currentAllowance - subtractedValue);   
+        }
         return true;
     }
 
@@ -1099,7 +1102,7 @@ contract Vemate is  IBEP20, Ownable{
         uint256 lpHalf =  (amount*fee.lp)/(totalFee*2);
 
         // swap dev + marketing + charity + lpHalf
-        swapTokensForEth(amount - lpHalf);
+        swapTokensForBnb(amount - lpHalf);
 
         // how much ETH did we just swap into?
         uint256 receivedBnb = address(this).balance - initialBalance;
@@ -1119,7 +1122,7 @@ contract Vemate is  IBEP20, Ownable{
         addLiquidity(lpHalf, lpHalfBnbShare);
     }
 
-    function swapTokensForEth(uint256 tokenAmount) private {
+    function swapTokensForBnb(uint256 tokenAmount) private {
         // generate the uniswap pair path of token -> weth
         address[] memory path = new address[](2);
         path[0] = address(this);
@@ -1127,14 +1130,14 @@ contract Vemate is  IBEP20, Ownable{
 
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 
-        uint ethAmount = tokenAmount/tokenPerBNB;
+        uint bnbAmount = tokenAmount/tokenPerBNB;
 
-        uint minETHAmount = ethAmount - (ethAmount* swapSlippageTolerancePercent)/100;
+        uint minBNBAmount = bnbAmount - (bnbAmount* swapSlippageTolerancePercent)/100;
 
         // make the swap
         try uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
             tokenAmount,
-            minETHAmount, // this will protect sandwich attack
+            minBNBAmount, // this will protect sandwich attack
             path,
             address(this),
             getCurrentTime()
@@ -1145,20 +1148,19 @@ contract Vemate is  IBEP20, Ownable{
         }
     }
 
-    function addLiquidity(uint256 tokenAmount, uint256 ethAmount) private {
-        // require(msg.value>0, "No eth found in this account");
+    function addLiquidity(uint256 tokenAmount, uint256 bnbAmount) private {
         // approve token transfer to cover all possible scenarios
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 
-        uint minETHAmount = ethAmount - (ethAmount* swapSlippageTolerancePercent)/100;
+        uint minBNBAmount = bnbAmount - (bnbAmount* swapSlippageTolerancePercent)/100;
         uint minTokenAmount = tokenAmount - (tokenAmount* swapSlippageTolerancePercent)/100;
 
         // add the liquidity
-        (uint amountToken, uint amountToken, uint liquidity) = uniswapV2Router.addLiquidityETH{value: ethAmount}(
+        (uint amountToken, uint amountToken, uint liquidity) = uniswapV2Router.addLiquidityETH{value: bnbAmount}(
             address(this),
             tokenAmount,
             minTokenAmount,
-            minETHAmount,
+            minBNBAmount,
             address(this),
             getCurrentTime()
         );
@@ -1172,7 +1174,6 @@ contract Vemate is  IBEP20, Ownable{
         bool takeFee
     ) internal {
         uint256 transferAmount = amount;
-        _balances[sender] = _balances[sender] - amount;
         if (takeFee) {
             uint8 totalFeePercent = fee.lp + fee.marketing + fee.charity + fee.dev;
             uint256 totalFee = (amount*totalFeePercent)/100;
@@ -1181,6 +1182,9 @@ contract Vemate is  IBEP20, Ownable{
             _balances[address(this)] = _balances[address(this)] + totalFee;
             transferAmount = transferAmount - totalFee;
             emit Transfer(sender, address(this), totalFee);
+        }
+        unchecked {
+            _balances[sender] = _balances[sender] - amount;   
         }
         _balances[recipient] = _balances[recipient] + transferAmount;
         emit Transfer(sender, recipient, transferAmount);

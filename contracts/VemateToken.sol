@@ -636,11 +636,11 @@ contract Vemate is  IBEP20, Ownable{
 
     IUniswapV2Router02 public uniswapV2Router;
 
-    string private  _name = "Vemate";
-    string private _symbol = "V";
+    string private constant _NAME = "Vemate";
+    string private constant _SYMBOL = "V";
 
     // Pack variables together for gas optimization
-    uint8   private _decimals = 18;
+    uint8   private _DECIMALS = 18;
     uint8   public constant MAX_FEE_PERCENT = 5;
     uint8   public swapSlippageTolerancePercent = 10;
     bool    private antiBot = true;
@@ -649,7 +649,7 @@ contract Vemate is  IBEP20, Ownable{
 
     address public uniswapV2Pair;
 
-    uint256 private _totalSupply; // 150 million;
+    uint256 private constant TOTAL_SUPPLY; // 150 million;
 
     mapping (address => uint256) private _balances;
     mapping (address => mapping (address => uint256)) private _allowances;
@@ -696,13 +696,13 @@ contract Vemate is  IBEP20, Ownable{
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory()).createPair(address(this), _uniswapV2Router.WETH());
         uniswapV2Router = _uniswapV2Router;
 
-        _totalSupply = 15*1000000 * 10**_decimals; // 150 million;
-        maxTxAmount = _totalSupply;
-        numTokensSellToAddToLiquidity = 10000 * 10**_decimals; // 10000 Token
+        TOTAL_SUPPLY = 15*1000000 * 10**_DECIMALS; // 150 million;
+        maxTxAmount = TOTAL_SUPPLY;
+        numTokensSellToAddToLiquidity = 10000 * 10**_DECIMALS; // 10000 Token
 
-        _balances[_msgSender()] = _totalSupply;
+        _balances[_msgSender()] = TOTAL_SUPPLY;
 
-        emit Transfer(address(0), msg.sender, _totalSupply);
+        emit Transfer(address(0), msg.sender,TOTAL_SUPPLY);
     }
 
     function setRouterAddress(address newRouter) external onlyOwner {
@@ -847,7 +847,7 @@ contract Vemate is  IBEP20, Ownable{
     }
 
     function setMaxTxAmount(uint256 amount) external onlyOwner{
-        require(0 < amount <=_totalSupply,"amount cannot be greater than total supply");
+        require(0 < amount <=TOTAL_SUPPLY,"amount cannot be greater than total supply");
         uint256 prevTxAmount = maxTxAmount;
         maxTxAmount = amount;
         emit UpdateMaxTxAmount(maxTxAmount, prevTxAmount);
@@ -903,28 +903,28 @@ contract Vemate is  IBEP20, Ownable{
     * @dev Returns the token decimals.
     */
     function decimals() external override view returns (uint8) {
-        return _decimals;
+        return _DECIMALS;
     }
 
     /**
     * @dev Returns the token symbol.
     */
     function symbol() external override view returns (string memory) {
-        return _symbol;
+        return _SYMBOL;
     }
 
     /**
     * @dev Returns the token name.
     */
     function name() external override view returns (string memory) {
-        return _name;
+        return _NAME;
     }
 
     /**
     * @dev See {BEP20-totalSupply}.
     */
     function totalSupply() external override view returns (uint256) {
-        return _totalSupply;
+        return TOTAL_SUPPLY;
     }
 
     /**

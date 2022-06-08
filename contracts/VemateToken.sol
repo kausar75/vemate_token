@@ -827,14 +827,14 @@ contract Vemate is  IBEP20, Ownable{
     }
 
     function setLockTimeBetweenSells(uint256 newLockSeconds) external onlyOwner {
-        require(newLockSeconds <= 30, "Time between sells must be less than 30 seconds");
+        require(newLockSeconds <= 60, "Time between sells must be less than 60 seconds");
         uint256 _previous = lockedBetweenSells;
         lockedBetweenSells = newLockSeconds;
         emit UpdateLockedBetweenSells(lockedBetweenSells, _previous);
     }
 
     function setLockTimeBetweenBuys(uint256 newLockSeconds) external onlyOwner {
-        require(newLockSeconds <= 30, "Time between buys be less than 30 seconds");
+        require(newLockSeconds <= 60, "Time between buys be less than 60 seconds");
         uint256 _previous = lockedBetweenBuys;
         lockedBetweenBuys = newLockSeconds;
         emit UpdateLockedBetweenBuys(lockedBetweenBuys, _previous);

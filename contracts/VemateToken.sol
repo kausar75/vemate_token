@@ -1149,7 +1149,6 @@ contract Vemate is  IBEP20, Ownable{
     }
 
     function addLiquidity(uint256 tokenAmount, uint256 bnbAmount) private {
-        // require(msg.value>0, "No eth found in this account");
         // approve token transfer to cover all possible scenarios
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 

@@ -400,7 +400,10 @@ contract Vemate is  IBEP20, Ownable{
         uint256 _currentAllowance = _allowances[sender][_msgSender()];
         // this check is not mandatory. but to return exact overflow reason we can use it.
         require(_currentAllowance >= amount, "exceeds allowance");
-        _approve(sender, _msgSender(), _currentAllowance - amount);
+        //_approve(sender, _msgSender(), _currentAllowance - amount);
+        unchecked {
+            _approve(sender, _msgSender(), _currentAllowance - amount);
+        }
         return true;
     }
 
@@ -439,7 +442,10 @@ contract Vemate is  IBEP20, Ownable{
         uint256 _currentAllowance = _allowances[_msgSender()][spender];
         // this check is not mandatory. but to return exact overflow reason we can use it.
         require(_currentAllowance >= subtractedValue, "allowance below zero");
-        _approve(_msgSender(), spender, _currentAllowance - subtractedValue);
+        //_approve(_msgSender(), spender, _currentAllowance - subtractedValue);
+        unchecked {
+            _approve(_msgSender(), spender, _currentAllowance - subtractedValue);
+        }
         return true;
     }
 
@@ -604,7 +610,10 @@ contract Vemate is  IBEP20, Ownable{
             transferAmount = transferAmount - totalFee;
             emit Transfer(sender, address(this), totalFee);
         }
-        _balances[sender] = _balances[sender] - amount;
+        //_balances[sender] = _balances[sender] - amount;
+        unchecked {
+            _balances[sender] = _balances[sender] - amount;
+        }
         _balances[recipient] = _balances[recipient] + transferAmount;
         emit Transfer(sender, recipient, transferAmount);
     }

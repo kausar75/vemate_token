@@ -846,7 +846,8 @@ contract Vemate is  IBEP20, Ownable{
     }
 
     function setMaxTxAmount(uint256 amount) external onlyOwner{
-        require(0 < amount <=TOTAL_SUPPLY,"amount cannot be greater than total supply");
+        require(amount > 0, "can't be zero or less");
+        require(amount <= TOTAL_SUPPLY,"can't be greater than total supply");
         uint256 prevTxAmount = maxTxAmount;
         maxTxAmount = amount;
         emit UpdateMaxTxAmount(maxTxAmount, prevTxAmount);

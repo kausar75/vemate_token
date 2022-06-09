@@ -695,7 +695,7 @@ contract Vemate is  IBEP20, Ownable{
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory()).createPair(address(this), _uniswapV2Router.WETH());
         uniswapV2Router = _uniswapV2Router;
 
-        TOTAL_SUPPLY = 15*1000000 * 10**_DECIMALS; // 150 million;
+        TOTAL_SUPPLY = 15 * 10000000 * 10**_DECIMALS; // 150 million;
         maxTxAmount = TOTAL_SUPPLY;
         numTokensSellToAddToLiquidity = 10000 * 10**_DECIMALS; // 10000 Token
 

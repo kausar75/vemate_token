@@ -640,7 +640,7 @@ contract Vemate is  IBEP20, Ownable{
     string private constant _SYMBOL = "V";
 
     // Pack variables together for gas optimization
-    uint8   private _DECIMALS = 18;
+    uint8   private constant _DECIMALS = 18;
     uint8   public constant MAX_FEE_PERCENT = 5;
     uint8   public swapSlippageTolerancePercent = 10;
     bool    private antiBot = true;

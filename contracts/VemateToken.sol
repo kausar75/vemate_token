@@ -653,6 +653,7 @@ contract Vemate is  IBEP20, Ownable{
     mapping (address => mapping (address => uint256)) private _allowances;
     mapping (address => bool) private _isPrivileged;
     mapping (address => uint) private _addressToLastSwapTime;
+    mapping (address => bool) public automatedMarketMakerPairs;
 
     uint256 public minTokensToSwapAndLiquify; // 10000 Token
 
@@ -682,6 +683,8 @@ contract Vemate is  IBEP20, Ownable{
         IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(router);
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory()).createPair(address(this), _uniswapV2Router.WETH());
         uniswapV2Router = _uniswapV2Router;
+
+        setAutomatedMarketMakerPair(uniswapV2Pair, true);
 
         minTokensToSwapAndLiquify = 10000 * 10**_DECIMALS; // 10000 Token
 
@@ -800,6 +803,14 @@ contract Vemate is  IBEP20, Ownable{
         fee = currentFee;
 
         emit UpdateCharityFeePercent(charityFeePercent, previousFee);
+    }
+
+    function setAutomatedMarketMakerPair(address pair, bool value) public onlyOwner{
+        require(pair != uniswapV2Pair, "The PancakeSwap pair can not be removed from setAutomatedMarketMakerPair");
+        require(automatedMarketMakerPairs[pair] != value, "Automated market maker pair is already set to that value");
+        automatedMarketMakerPairs[pair] = value;
+
+        emit SetAutomatedMarketMakerPair(pair, value);
     }
 
     function togglePauseBuyingFee() external onlyOwner{
@@ -993,7 +1004,7 @@ contract Vemate is  IBEP20, Ownable{
 
         if (_isPrivileged[sender] || _isPrivileged[recipient]){
             // takeFee already false. Do nothing and reduce gas fee.
-        } else if (recipient == uniswapV2Pair) { // sell : fee and restrictions for non-privileged wallet
+        } else if (automatedMarketMakerPairs[recipient]) { // sell : fee and restrictions for non-privileged wallet
             require(amount <= TOTAL_SUPPLY, "Amount larger than max tx amount!");
             checkSwapFrequency(sender);
             if (fee.enabledOnSell){
@@ -1002,11 +1013,11 @@ contract Vemate is  IBEP20, Ownable{
                     swapAndLiquify(minTokensToSwapAndLiquify);
                 }
             }
-        } else if (sender == uniswapV2Pair){  // buy : fee and restrictions for non-privileged wallet
+        } else if (automatedMarketMakerPairs[sender]){  // buy : fee and restrictions for non-privileged wallet
             require(amount <= TOTAL_SUPPLY, "Amount larger than max tx amount!");
             checkSwapFrequency(recipient);
             if (fee.enabledOnBuy){
-                takeFee = true;
+                takeFee = false;
                 if (shouldSwap()){
                     swapAndLiquify(minTokensToSwapAndLiquify);
                 }
@@ -1164,6 +1175,8 @@ contract Vemate is  IBEP20, Ownable{
     event UpdateTreasuryFeePercent(uint8 current, uint8 previous);
     event UpdateMarketingFeePercent(uint8 current, uint8 previous);
     event UpdateCharityFeePercent(uint8 current, uint8 previous);
+
+    event SetAutomatedMarketMakerPair(address indexed pair, bool indexed value);
 
     event UpdateSellingFee(bool isEnabled);
     event UpdateBuyingFee(bool isEnabled);

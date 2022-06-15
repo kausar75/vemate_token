@@ -642,7 +642,6 @@ contract Vemate is  IBEP20, Ownable{
     // Pack variables together for gas optimization
     uint8   private constant _DECIMALS = 18;
     uint8   public constant MAX_FEE_PERCENT = 5;
-    uint8   public swapSlippageTolerancePercent = 10;
     bool    private inSwapAndLiquify;
     bool    public swapAndLiquifyEnabled = true;
 
@@ -816,13 +815,6 @@ contract Vemate is  IBEP20, Ownable{
     function toggleSwapAndLiquify() external onlyOwner{
         swapAndLiquifyEnabled = !swapAndLiquifyEnabled;
         emit UpdateSwapAndLiquify(swapAndLiquifyEnabled);
-    }
-
-    function setSwapTolerancePercent(uint8 newTolerancePercent) external onlyOwner{
-        require(newTolerancePercent <= 30, "Swap tolerance percent cannot be more than 30");
-        uint8 swapTolerancePercentPrev = swapSlippageTolerancePercent;
-        swapSlippageTolerancePercent = newTolerancePercent;
-        emit UpdateSwapTolerancePercent(swapSlippageTolerancePercent, swapTolerancePercentPrev);
     }
 
     function setMinTokenToSwapAndLiquify(uint256 amount) external onlyOwner{
@@ -1096,14 +1088,12 @@ contract Vemate is  IBEP20, Ownable{
         // approve token transfer to cover all possible scenarios
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 
-        uint minTokenAmount = tokenAmount - (tokenAmount* swapSlippageTolerancePercent)/100;
-
         // add the liquidity
         (uint amountToken, uint amountToken, uint liquidity) = uniswapV2Router.addLiquidityETH{value: bnbAmount}(
             address(this),
             tokenAmount,
-            minTokenAmount,
-            0,
+            0, // slippage is unavoidable
+            0, // slippage is unavoidable
             address(this),
             getCurrentTime()
         );

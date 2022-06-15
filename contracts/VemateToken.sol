@@ -1078,12 +1078,10 @@ contract Vemate is  IBEP20, Ownable{
 
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 
-        uint minBNBAmount = 0
-
         // make the swap
         try uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
             tokenAmount,
-            minBNBAmount, // this will protect sandwich attack
+            0, // this will protect sandwich attack
             path,
             address(this),
             getCurrentTime()
@@ -1098,7 +1096,6 @@ contract Vemate is  IBEP20, Ownable{
         // approve token transfer to cover all possible scenarios
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 
-        uint minBNBAmount = bnbAmount - (bnbAmount* swapSlippageTolerancePercent)/100;
         uint minTokenAmount = tokenAmount - (tokenAmount* swapSlippageTolerancePercent)/100;
 
         // add the liquidity
@@ -1106,7 +1103,7 @@ contract Vemate is  IBEP20, Ownable{
             address(this),
             tokenAmount,
             minTokenAmount,
-            minBNBAmount,
+            0,
             address(this),
             getCurrentTime()
         );

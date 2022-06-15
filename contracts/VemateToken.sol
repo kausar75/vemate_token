@@ -1081,7 +1081,7 @@ contract Vemate is  IBEP20, Ownable{
         // make the swap
         try uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
             tokenAmount,
-            0, // this will protect sandwich attack
+            0, // accept any amount of BNB
             path,
             address(this),
             getCurrentTime()

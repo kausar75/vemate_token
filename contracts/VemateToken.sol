@@ -617,14 +617,14 @@ contract Vemate is  IBEP20, Ownable{
     using FixedPoint for *;
 
     struct FeeWallet {
-        address  payable dev;
+        address  payable treasury;
         address  payable marketing;
         address  payable charity;
     }
 
     struct FeePercent {
         uint8  lp;
-        uint8  dev;
+        uint8  treasury;
         uint8  marketing;
         uint8  charity;
         bool enabledOnBuy;
@@ -659,7 +659,7 @@ contract Vemate is  IBEP20, Ownable{
     uint256 public lockedBetweenSells = 60;
     uint256 public lockedBetweenBuys = 60;
     uint256 public maxTxAmount;
-    uint256 public numTokensSellToAddToLiquidity; // 10000 Token
+    uint256 public minTokensToSwapAndLiquify; // 10000 Token
 
     // We will depend on external price for the token to protect the sandwich attack.
     uint256 public tokenPerBNB = 23810;
@@ -673,30 +673,30 @@ contract Vemate is  IBEP20, Ownable{
 
     constructor(
         address router,
-        address payable devAddress,
+        address payable treasuryAddress,
         address payable marketingAddress,
         address payable charityAddress
     ){
         require(router != address(0), "Router must be set");
-        require(devAddress != address(0), "Dev wallet must be set");
+        require(treasuryAddress != address(0), "Treasury wallet must be set");
         require(marketingAddress != address(0), "Marketing wallet must be set");
         require(charityAddress != address(0), "Charity wallet must be set");
 
         _isPrivileged[owner()] = true;
-        _isPrivileged[devAddress] = true;
+        _isPrivileged[treasuryAddress] = true;
         _isPrivileged[marketingAddress] = true;
         _isPrivileged[charityAddress] = true;
         _isPrivileged[address(this)] = true;
 
         // set wallets for collecting fees
-        feeWallets = FeeWallet(devAddress, marketingAddress, charityAddress);
+        feeWallets = FeeWallet(treasuryAddress, marketingAddress, charityAddress);
 
         IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(router);
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory()).createPair(address(this), _uniswapV2Router.WETH());
         uniswapV2Router = _uniswapV2Router;
 
         maxTxAmount = TOTAL_SUPPLY;
-        numTokensSellToAddToLiquidity = 10000 * 10**_DECIMALS; // 10000 Token
+        minTokensToSwapAndLiquify = 10000 * 10**_DECIMALS; // 10000 Token
 
         _balances[_msgSender()] = TOTAL_SUPPLY;
 
@@ -719,15 +719,15 @@ contract Vemate is  IBEP20, Ownable{
         emit UpdatePancakeRouter(uniswapV2Router, uniswapV2Pair);
     }
 
-    function setDevWallet(address payable devWallet) external onlyOwner{
-        require(devWallet != address(0),  "Dev wallet must be set");
-        address devWalletPrev = feeWallets.dev;
-        feeWallets.dev = devWallet;
+    function setTreasuryWallet(address payable treasuryWallet) external onlyOwner{
+        require(treasuryWallet != address(0),  "Treasury wallet must be set");
+        address treasuryWalletPrev = feeWallets.treasury;
+        feeWallets.treasury = treasuryWallet;
 
-        _isPrivileged[devWallet] = true;
-        delete _isPrivileged[devWalletPrev];
+        _isPrivileged[treasuryWallet] = true;
+        delete _isPrivileged[treasuryWalletPrev];
 
-        emit UpdateDevWallet(devWallet, devWalletPrev);
+        emit UpdateTreasuryWallet(treasuryWallet, treasuryWalletPrev);
     }
 
     function setMarketingWallet(address payable marketingWallet) external onlyOwner{
@@ -773,7 +773,7 @@ contract Vemate is  IBEP20, Ownable{
 
     function setLpFeePercent(uint8 lpFeePercent) external onlyOwner {
         FeePercent memory currentFee = fee;
-        uint8 totalFeePercent = currentFee.marketing + currentFee.dev + currentFee.charity + lpFeePercent;
+        uint8 totalFeePercent = currentFee.marketing + currentFee.treasury + currentFee.charity + lpFeePercent;
         require(totalFeePercent <= MAX_FEE_PERCENT, "Total fee percent cannot be greater than maxFeePercent");
         uint8 previousFee = currentFee.lp;
         currentFee.lp = lpFeePercent;
@@ -782,20 +782,20 @@ contract Vemate is  IBEP20, Ownable{
         emit UpdateLpFeePercent(lpFeePercent, previousFee);
     }
 
-    function setDevFeePercent(uint8 devFeePercent) external onlyOwner {
+    function setTreasuryFeePercent(uint8 treasuryFeePercent) external onlyOwner {
         FeePercent memory currentFee = fee;
-        uint8 totalFeePercent = currentFee.marketing + currentFee.lp + currentFee.charity + devFeePercent;
+        uint8 totalFeePercent = currentFee.marketing + currentFee.lp + currentFee.charity + treasuryFeePercent;
         require(totalFeePercent <= MAX_FEE_PERCENT, "Total fee percent cannot be greater than maxFeePercent");
-        uint8 previousFee = currentFee.dev;
-        currentFee.dev = devFeePercent;
+        uint8 previousFee = currentFee.treasury;
+        currentFee.treasury = treasuryFeePercent;
         fee = currentFee;
 
-        emit UpdateDevFeePercent(devFeePercent, previousFee);
+        emit UpdateTreasuryFeePercent(treasuryFeePercent, previousFee);
     }
 
     function setMarketingFeePercent(uint8 marketingFeePercent) external onlyOwner {
         FeePercent memory currentFee = fee;
-        uint8 totalFeePercent = currentFee.lp + currentFee.dev + currentFee.charity + marketingFeePercent;
+        uint8 totalFeePercent = currentFee.lp + currentFee.treasury + currentFee.charity + marketingFeePercent;
         require(totalFeePercent <= MAX_FEE_PERCENT, "Total fee percent cannot be greater than maxFeePercent");
         uint8 previousFee = currentFee.marketing;
         currentFee.marketing = marketingFeePercent;
@@ -806,7 +806,7 @@ contract Vemate is  IBEP20, Ownable{
 
     function setCharityFeePercent(uint8 charityFeePercent) external onlyOwner {
         FeePercent memory currentFee = fee;
-        uint8 totalFeePercent = currentFee.marketing + currentFee.dev + currentFee.lp + charityFeePercent;
+        uint8 totalFeePercent = currentFee.marketing + currentFee.treasury + currentFee.lp + charityFeePercent;
         require(totalFeePercent <= MAX_FEE_PERCENT, "Total fee percent cannot be greater than maxFeePercent");
         uint8 previousFee = currentFee.charity;
         currentFee.charity = charityFeePercent;
@@ -872,9 +872,9 @@ contract Vemate is  IBEP20, Ownable{
 
     function setMinTokenToSwapAndLiquify(uint256 amount) external onlyOwner{
         require(amount>0, "amount cannot be zero");
-        uint256 numTokensSellToAddToLiquidityPrev = numTokensSellToAddToLiquidity;
-        numTokensSellToAddToLiquidity = amount;
-        emit UpdateMinTokenToSwapAndLiquify(numTokensSellToAddToLiquidity, numTokensSellToAddToLiquidityPrev);
+        uint256 minTokensToSwapAndLiquifyPrev = minTokensToSwapAndLiquify;
+        minTokensToSwapAndLiquify = amount;
+        emit UpdateMinTokenToSwapAndLiquify(minTokensToSwapAndLiquify, minTokensToSwapAndLiquifyPrev);
     }
 
     function withdrawResidualBNB(address newAddress) external onlyOwner() {
@@ -1059,7 +1059,7 @@ contract Vemate is  IBEP20, Ownable{
             if (fee.enabledOnSell){
                 takeFee = true;
                 if (shouldSwap()){
-                    swapAndLiquify(numTokensSellToAddToLiquidity);
+                    swapAndLiquify(minTokensToSwapAndLiquify);
                 }
             }
         } else if (sender == uniswapV2Pair){  // buy : fee and restrictions for non-privileged wallet
@@ -1068,7 +1068,7 @@ contract Vemate is  IBEP20, Ownable{
             if (fee.enabledOnBuy){
                 takeFee = true;
                 if (shouldSwap()){
-                    swapAndLiquify(numTokensSellToAddToLiquidity);
+                    swapAndLiquify(minTokensToSwapAndLiquify);
                 }
             }
         }
@@ -1077,7 +1077,7 @@ contract Vemate is  IBEP20, Ownable{
 
     function shouldSwap() private view returns(bool)  {
         uint256 contractTokenBalance = _balances[(address(this))];
-        bool overMinTokenBalance = contractTokenBalance >= numTokensSellToAddToLiquidity;
+        bool overMinTokenBalance = contractTokenBalance >= minTokensToSwapAndLiquify;
 
         if (overMinTokenBalance && !inSwapAndLiquify && swapAndLiquifyEnabled) {
             return true;
@@ -1096,12 +1096,12 @@ contract Vemate is  IBEP20, Ownable{
         uint256 initialBalance = address(this).balance;
 
         // We need to collect Bnb from the token amount
-        // dev + marketing + charity will be send to the wallet
+        // treasury + marketing + charity will be send to the wallet
         // the rest(for liquid pool) will be divided into two and be used to addLiquidity
-        uint8 totalFee = fee.dev + fee.lp + fee.charity + fee.marketing;
+        uint8 totalFee = fee.treasury + fee.lp + fee.charity + fee.marketing;
         uint256 lpHalf =  (amount*fee.lp)/(totalFee*2);
 
-        // swap dev + marketing + charity + lpHalf
+        // swap treasury + marketing + charity + lpHalf
         swapTokensForBnb(amount - lpHalf);
 
         // how much ETH did we just swap into?
@@ -1109,13 +1109,13 @@ contract Vemate is  IBEP20, Ownable{
 
         // get the Bnb amount for lpHalf
         uint256 lpHalfBnbShare = (receivedBnb*fee.lp)/(totalFee*2 - fee.lp); // to avoid possible floating point error
-        uint256 devBnbShare = (receivedBnb*2*fee.dev)/(totalFee*2 - fee.lp);
+        uint256 treasuryBnbShare = (receivedBnb*2*fee.treasury)/(totalFee*2 - fee.lp);
         uint256 marketingBnbShare = (receivedBnb*2*fee.marketing)/(totalFee*2 - fee.lp);
         uint256 charityBnbShare = (receivedBnb*2*fee.charity)/(totalFee*2 - fee.lp);
 
 
         // feeWallets.lp.transfer(lpHalfBnbShare);
-        feeWallets.dev.transfer(devBnbShare);
+        feeWallets.treasury.transfer(treasuryBnbShare);
         feeWallets.marketing.transfer(marketingBnbShare);
         feeWallets.charity.transfer(charityBnbShare);
 
@@ -1175,7 +1175,7 @@ contract Vemate is  IBEP20, Ownable{
     ) internal {
         uint256 transferAmount = amount;
         if (takeFee) {
-            uint8 totalFeePercent = fee.lp + fee.marketing + fee.charity + fee.dev;
+            uint8 totalFeePercent = fee.lp + fee.marketing + fee.charity + fee.treasury;
             uint256 totalFee = (amount*totalFeePercent)/100;
 
             // send the fee token to the contract address.
@@ -1226,14 +1226,14 @@ contract Vemate is  IBEP20, Ownable{
     }
 
     event UpdatePancakeRouter(IUniswapV2Router02 router, address pair);
-    event UpdateDevWallet(address current, address previous);
+    event UpdateTreasuryWallet(address current, address previous);
     event UpdateMarketingWallet(address current, address previous);
     event UpdateCharityWallet(address current, address previous);
 
     event PrivilegedWallet(address _privilegedAddress, bool isPrivileged);
 
     event UpdateLpFeePercent(uint8 current, uint8 previous);
-    event UpdateDevFeePercent(uint8 current, uint8 previous);
+    event UpdateTreasuryFeePercent(uint8 current, uint8 previous);
     event UpdateMarketingFeePercent(uint8 current, uint8 previous);
     event UpdateCharityFeePercent(uint8 current, uint8 previous);
 
@@ -1250,7 +1250,7 @@ contract Vemate is  IBEP20, Ownable{
     event UpdateTokenPerBNB(uint256 tokenPerBNB);
     event UpdateSwapAndLiquify(bool swapAndLiquifyEnabled);
     event UpdateSwapTolerancePercent(uint8 swapTolerancePercent, uint8 swapTolerancePercentPrev);
-    event UpdateMinTokenToSwapAndLiquify(uint256 numTokensSellToAddToLiquidity, uint256 numTokensSellToAddToLiquidityPrev);
+    event UpdateMinTokenToSwapAndLiquify(uint256 minTokensToSwapAndLiquify, uint256 minTokensToSwapAndLiquifyPrev);
     event LiquidityAdded(uint tokenAmount, uint bnbAmount, uint liquidity);
     event SwapAndLiquifyStatus(string status);
 

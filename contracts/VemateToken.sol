@@ -649,7 +649,7 @@ contract Vemate is  IBEP20, Ownable{
 
     address public uniswapV2Pair;
 
-    uint256 private constant TOTAL_SUPPLY = 15*10000000 * 10**_DECIMALS; // 150 million;
+    uint256 private constant TOTAL_SUPPLY = 15 * 10**7 * 10**_DECIMALS; // 150 million;
 
     mapping (address => uint256) private _balances;
     mapping (address => mapping (address => uint256)) private _allowances;

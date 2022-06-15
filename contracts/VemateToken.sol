@@ -1087,7 +1087,7 @@ contract Vemate is  IBEP20, Ownable{
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 
         // add the liquidity
-        (uint amountToken, uint amountToken, uint liquidity) = uniswapV2Router.addLiquidityETH{value: bnbAmount}(
+        (uint amountToken, uint amountBnb, uint liquidity) = uniswapV2Router.addLiquidityETH{value: bnbAmount}(
             address(this),
             tokenAmount,
             0, // slippage is unavoidable
@@ -1095,7 +1095,7 @@ contract Vemate is  IBEP20, Ownable{
             address(this),
             getCurrentTime()
         );
-        emit LiquidityAdded(amountToken, amountToken, liquidity);
+        emit LiquidityAdded(amountToken, amountBnb, liquidity);
     }
 
     function _tokenTransfer(

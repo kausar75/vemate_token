@@ -1053,8 +1053,6 @@ contract Vemate is  IBEP20, Ownable{
         uint256 marketingBnbShare = (receivedBnb*2*fee.marketing)/(totalFee*2 - fee.lp);
         uint256 charityBnbShare = (receivedBnb*2*fee.charity)/(totalFee*2 - fee.lp);
 
-
-        // feeWallets.lp.transfer(lpHalfBnbShare);
         feeWallets.treasury.transfer(treasuryBnbShare);
         feeWallets.marketing.transfer(marketingBnbShare);
         feeWallets.charity.transfer(charityBnbShare);

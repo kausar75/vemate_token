@@ -675,9 +675,6 @@ contract Vemate is  IBEP20, Ownable{
         require(charityAddress != address(0), "Charity wallet must be set");
 
         _isPrivileged[owner()] = true;
-        _isPrivileged[treasuryAddress] = true;
-        _isPrivileged[marketingAddress] = true;
-        _isPrivileged[charityAddress] = true;
         _isPrivileged[address(this)] = true;
 
         // set wallets for collecting fees

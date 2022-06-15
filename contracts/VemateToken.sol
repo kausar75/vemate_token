@@ -658,12 +658,7 @@ contract Vemate is  IBEP20, Ownable{
 
     uint256 public lockedBetweenSells = 60;
     uint256 public lockedBetweenBuys = 60;
-    uint256 public maxTxAmount;
     uint256 public minTokensToSwapAndLiquify; // 10000 Token
-
-    // We will depend on external price for the token to protect the sandwich attack.
-    uint256 public tokenPerBNB = 23810;
-
 
     modifier lockTheSwap {
         inSwapAndLiquify = true;
@@ -695,7 +690,6 @@ contract Vemate is  IBEP20, Ownable{
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory()).createPair(address(this), _uniswapV2Router.WETH());
         uniswapV2Router = _uniswapV2Router;
 
-        maxTxAmount = TOTAL_SUPPLY;
         minTokensToSwapAndLiquify = 10000 * 10**_DECIMALS; // 10000 Token
 
         _balances[_msgSender()] = TOTAL_SUPPLY;
@@ -842,20 +836,6 @@ contract Vemate is  IBEP20, Ownable{
     function toggleAntiBot() external onlyOwner {
         antiBot = !antiBot;
         emit UpdateAntibot(antiBot);
-    }
-
-    function setMaxTxAmount(uint256 amount) external onlyOwner{
-        require(amount > 0, "can't be zero or less");
-        require(amount <= TOTAL_SUPPLY,"can't be greater than total supply");
-        uint256 prevTxAmount = maxTxAmount;
-        maxTxAmount = amount;
-        emit UpdateMaxTxAmount(maxTxAmount, prevTxAmount);
-    }
-
-    function updateTokenPrice(uint256 _tokenPerBNB) external onlyOwner {
-        require(_tokenPerBNB>0, "token per BNB cannot be zero");
-        tokenPerBNB = _tokenPerBNB;
-        emit UpdateTokenPerBNB(tokenPerBNB);
     }
 
     function toggleSwapAndLiquify() external onlyOwner{
@@ -1054,7 +1034,7 @@ contract Vemate is  IBEP20, Ownable{
         if (_isPrivileged[sender] || _isPrivileged[recipient]){
             // takeFee already false. Do nothing and reduce gas fee.
         } else if (recipient == uniswapV2Pair) { // sell : fee and restrictions for non-privileged wallet
-            require(amount <= maxTxAmount, "Amount larger than max tx amount!");
+            require(amount <= TOTAL_SUPPLY, "Amount larger than max tx amount!");
             checkSwapFrequency(sender);
             if (fee.enabledOnSell){
                 takeFee = true;
@@ -1063,7 +1043,7 @@ contract Vemate is  IBEP20, Ownable{
                 }
             }
         } else if (sender == uniswapV2Pair){  // buy : fee and restrictions for non-privileged wallet
-            require(amount <= maxTxAmount, "Amount larger than max tx amount!");
+            require(amount <= TOTAL_SUPPLY, "Amount larger than max tx amount!");
             checkSwapFrequency(recipient);
             if (fee.enabledOnBuy){
                 takeFee = true;
@@ -1130,9 +1110,7 @@ contract Vemate is  IBEP20, Ownable{
 
         _approve(address(this), address(uniswapV2Router), tokenAmount);
 
-        uint bnbAmount = tokenAmount/tokenPerBNB;
-
-        uint minBNBAmount = bnbAmount - (bnbAmount* swapSlippageTolerancePercent)/100;
+        uint minBNBAmount = 0
 
         // make the swap
         try uniswapV2Router.swapExactTokensForETHSupportingFeeOnTransferTokens(
@@ -1245,9 +1223,6 @@ contract Vemate is  IBEP20, Ownable{
 
     event UpdateAntibot(bool isEnabled);
 
-    event UpdateMaxTxAmount(uint256 maxTxAmount, uint256 prevTxAmount);
-
-    event UpdateTokenPerBNB(uint256 tokenPerBNB);
     event UpdateSwapAndLiquify(bool swapAndLiquifyEnabled);
     event UpdateSwapTolerancePercent(uint8 swapTolerancePercent, uint8 swapTolerancePercentPrev);
     event UpdateMinTokenToSwapAndLiquify(uint256 minTokensToSwapAndLiquify, uint256 minTokensToSwapAndLiquifyPrev);

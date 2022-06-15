@@ -847,13 +847,6 @@ contract Vemate is  IBEP20, Ownable{
     }
 
     /**
-    * @dev Returns the bep token owner.
-    */
-    function getOwner() external override view returns (address) {
-        return owner();
-    }
-
-    /**
     * @dev Returns the token decimals.
     */
     function decimals() external override view returns (uint8) {

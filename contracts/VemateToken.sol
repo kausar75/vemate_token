@@ -1,7 +1,3 @@
-/**
- *Submitted for verification at BscScan.com on 2022-05-19
-*/
-
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.9;
 
@@ -502,19 +498,19 @@ interface IUniswapV2Router01 {
         uint deadline
     ) external returns (uint[] memory amounts);
     function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline)
-        external
-        payable
-        returns (uint[] memory amounts);
+    external
+    payable
+    returns (uint[] memory amounts);
     function swapTokensForExactETH(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline)
-        external
-        returns (uint[] memory amounts);
+    external
+    returns (uint[] memory amounts);
     function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline)
-        external
-        returns (uint[] memory amounts);
+    external
+    returns (uint[] memory amounts);
     function swapETHForExactTokens(uint amountOut, address[] calldata path, address to, uint deadline)
-        external
-        payable
-        returns (uint[] memory amounts);
+    external
+    payable
+    returns (uint[] memory amounts);
 
     function quote(uint amountA, uint reserveA, uint reserveB) external pure returns (uint amountB);
     function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) external pure returns (uint amountOut);
@@ -583,7 +579,7 @@ interface IUniswapV2Pair {
     function nonces(address owner) external view returns (uint);
 
     function permit(address owner, address spender, uint value, uint deadline, uint8 v, bytes32 r, bytes32 s) external;
-    
+
     event Burn(address indexed sender, uint amount0, uint amount1, address indexed to);
     event Swap(
         address indexed sender,
@@ -613,48 +609,45 @@ interface IUniswapV2Pair {
 }
 
 
-contract Vemate is  IBEP20, Ownable{
+contract Vemate is IBEP20, Ownable{
     using FixedPoint for *;
 
     struct FeeWallet {
-        address  payable treasury;
-        address  payable marketing;
-        address  payable charity;
+        address payable treasury;
+        address payable charity;
     }
 
     struct FeePercent {
-        uint8  lp;
-        uint8  treasury;
-        uint8  marketing;
-        uint8  charity;
+        uint8 treasury;
+        uint8 charity;
+        uint8 total;
         bool enabledOnBuy;
         bool enabledOnSell;
     }
 
     FeeWallet public feeWallets;
-    FeePercent public fee  = FeePercent(2, 1, 1, 1, false, true);
+    FeePercent public fee = FeePercent(4, 1, 5, false, true);
 
     IUniswapV2Router02 public uniswapV2Router;
 
     string private constant _NAME = "Vemate";
-    string private constant _SYMBOL = "V";
+    string private constant _SYMBOL = "VMT";
 
-    // Pack variables together for gas optimization
-    uint8   private constant _DECIMALS = 18;
-    uint8   public constant MAX_FEE_PERCENT = 5;
-    bool    private inSwapAndLiquify;
-    bool    public swapAndLiquifyEnabled = true;
+    uint8 private constant _DECIMALS = 18;
+    uint8 public constant MAX_FEE_PERCENT = 5;
+    bool private inSwapAndLiquify;
+    bool public swapAndLiquifyEnabled = true;
 
     address public uniswapV2Pair;
 
     uint256 private constant TOTAL_SUPPLY = 15 * 10**7 * 10**_DECIMALS; // 150 million;
 
-    mapping (address => uint256) private _balances;
-    mapping (address => mapping (address => uint256)) private _allowances;
-    mapping (address => bool) private _isPrivileged;
-    mapping (address => uint) private _addressToLastSwapTime;
+    mapping(address => uint256) private _balances;
+    mapping(address => mapping(address => uint256)) private _allowances;
+    mapping(address => bool) public automatedMarketMakerPairs;
+    mapping(address => bool) private _isPrivileged;
 
-    uint256 public minTokensToSwapAndLiquify; // 10000 Token
+    uint256 public minTokensToSwapAndLiquify;
 
     modifier lockTheSwap {
         inSwapAndLiquify = true;
@@ -665,36 +658,35 @@ contract Vemate is  IBEP20, Ownable{
     constructor(
         address router,
         address payable treasuryAddress,
-        address payable marketingAddress,
         address payable charityAddress
     ){
         require(router != address(0), "Router must be set");
         require(treasuryAddress != address(0), "Treasury wallet must be set");
-        require(marketingAddress != address(0), "Marketing wallet must be set");
         require(charityAddress != address(0), "Charity wallet must be set");
 
         _isPrivileged[owner()] = true;
         _isPrivileged[address(this)] = true;
 
-        // set wallets for collecting fees
-        feeWallets = FeeWallet(treasuryAddress, marketingAddress, charityAddress);
+        feeWallets = FeeWallet(treasuryAddress, charityAddress);
 
         IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(router);
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory()).createPair(address(this), _uniswapV2Router.WETH());
         uniswapV2Router = _uniswapV2Router;
 
-        minTokensToSwapAndLiquify = 10000 * 10**_DECIMALS; // 10000 Token
+        _setAutomatedMarketMakerPair(uniswapV2Pair, true);
+
+        minTokensToSwapAndLiquify = 10000 * 10**_DECIMALS;
 
         _balances[_msgSender()] = TOTAL_SUPPLY;
 
-        emit Transfer(address(0), _msgSender(),TOTAL_SUPPLY);
+        emit Transfer(address(0), _msgSender(), TOTAL_SUPPLY);
     }
 
     function setRouterAddress(address newRouter) external onlyOwner {
         IUniswapV2Router02 _newPancakeRouter = IUniswapV2Router02(newRouter);
-        IUniswapV2Factory factory = IUniswapV2Factory(_newPancakeRouter.factory()
-        );
+        IUniswapV2Factory factory = IUniswapV2Factory(_newPancakeRouter.factory());
         address pair = factory.getPair(address(this), _newPancakeRouter.WETH());
+
         if (pair == address(0)) {
             uniswapV2Pair = factory.createPair(address(this), _newPancakeRouter.WETH());
         } else {
@@ -707,97 +699,66 @@ contract Vemate is  IBEP20, Ownable{
     }
 
     function setTreasuryWallet(address payable treasuryWallet) external onlyOwner{
-        require(treasuryWallet != address(0),  "Treasury wallet must be set");
+        require(treasuryWallet != address(0),  "Error: zero address");
         address treasuryWalletPrev = feeWallets.treasury;
         feeWallets.treasury = treasuryWallet;
-
-        _isPrivileged[treasuryWallet] = true;
-        delete _isPrivileged[treasuryWalletPrev];
 
         emit UpdateTreasuryWallet(treasuryWallet, treasuryWalletPrev);
     }
 
-    function setMarketingWallet(address payable marketingWallet) external onlyOwner{
-        require(marketingWallet != address(0),  "Marketing wallet must be set");
-        address marketingWalletPrev = feeWallets.marketing;
-        feeWallets.marketing = marketingWallet;
-
-        _isPrivileged[marketingWallet] = true;
-        delete _isPrivileged[marketingWalletPrev];
-
-        emit UpdateMarketingWallet(marketingWallet, marketingWalletPrev);
-    }
-
     function setCharityWallet(address payable charityWallet) external onlyOwner{
-        require(charityWallet != address(0),  "Charity wallet must be set");
+        require(charityWallet != address(0),  "Error: zero address");
         address charityWalletPrev = feeWallets.charity;
         feeWallets.charity = charityWallet;
-
-        _isPrivileged[charityWallet] = true;
-        delete _isPrivileged[charityWalletPrev];
 
         emit UpdateCharityWallet(charityWallet, charityWalletPrev);
     }
 
     function addPrivilegedWallet(address newPrivilegedAddress) external onlyOwner {
-        require(newPrivilegedAddress != address(0), "privileged address can not be set zero address");
-        require(!_isPrivileged[newPrivilegedAddress], "already privileged");
+        require(newPrivilegedAddress != address(0), "Error: zero address");
+        require(!_isPrivileged[newPrivilegedAddress], "Already privileged");
         _isPrivileged[newPrivilegedAddress] = true;
 
         emit PrivilegedWallet(newPrivilegedAddress, true);
     }
 
     function removePrivilegedWallet(address prevPrivilegedAddress) external onlyOwner {
-        require(_isPrivileged[prevPrivilegedAddress], "not privileged address");
+        require(_isPrivileged[prevPrivilegedAddress], "Not privileged address");
         delete _isPrivileged[prevPrivilegedAddress];
 
         emit PrivilegedWallet(prevPrivilegedAddress, false);
+    }
+
+    function setAutomatedMarketMakerPair(address pair, bool value) external onlyOwner {
+        require(pair != uniswapV2Pair, "PancakeSwap pair cannot be removed");
+
+        _setAutomatedMarketMakerPair(pair, value);
     }
 
     function privilegedAddress(address existingPrivilegedAddress) public view returns(bool){
         return _isPrivileged[existingPrivilegedAddress];
     }
 
-    function setLpFeePercent(uint8 lpFeePercent) external onlyOwner {
-        FeePercent memory currentFee = fee;
-        uint8 totalFeePercent = currentFee.marketing + currentFee.treasury + currentFee.charity + lpFeePercent;
-        require(totalFeePercent <= MAX_FEE_PERCENT, "Total fee percent cannot be greater than maxFeePercent");
-        uint8 previousFee = currentFee.lp;
-        currentFee.lp = lpFeePercent;
-        fee = currentFee;
-
-        emit UpdateLpFeePercent(lpFeePercent, previousFee);
-    }
-
     function setTreasuryFeePercent(uint8 treasuryFeePercent) external onlyOwner {
         FeePercent memory currentFee = fee;
-        uint8 totalFeePercent = currentFee.marketing + currentFee.lp + currentFee.charity + treasuryFeePercent;
+        uint8 totalFeePercent = currentFee.charity + treasuryFeePercent;
         require(totalFeePercent <= MAX_FEE_PERCENT, "Total fee percent cannot be greater than maxFeePercent");
         uint8 previousFee = currentFee.treasury;
-        currentFee.treasury = treasuryFeePercent;
-        fee = currentFee;
+
+        fee.treasury = treasuryFeePercent;
+        fee.total = totalFeePercent;
 
         emit UpdateTreasuryFeePercent(treasuryFeePercent, previousFee);
     }
 
-    function setMarketingFeePercent(uint8 marketingFeePercent) external onlyOwner {
-        FeePercent memory currentFee = fee;
-        uint8 totalFeePercent = currentFee.lp + currentFee.treasury + currentFee.charity + marketingFeePercent;
-        require(totalFeePercent <= MAX_FEE_PERCENT, "Total fee percent cannot be greater than maxFeePercent");
-        uint8 previousFee = currentFee.marketing;
-        currentFee.marketing = marketingFeePercent;
-        fee = currentFee;
-
-        emit UpdateMarketingFeePercent(marketingFeePercent, previousFee);
-    }
-
     function setCharityFeePercent(uint8 charityFeePercent) external onlyOwner {
         FeePercent memory currentFee = fee;
-        uint8 totalFeePercent = currentFee.marketing + currentFee.treasury + currentFee.lp + charityFeePercent;
+        uint8 totalFeePercent = currentFee.treasury + charityFeePercent;
         require(totalFeePercent <= MAX_FEE_PERCENT, "Total fee percent cannot be greater than maxFeePercent");
         uint8 previousFee = currentFee.charity;
-        currentFee.charity = charityFeePercent;
-        fee = currentFee;
+
+        fee.charity = charityFeePercent;
+        fee.total = totalFeePercent;
 
         emit UpdateCharityFeePercent(charityFeePercent, previousFee);
     }
@@ -818,21 +779,28 @@ contract Vemate is  IBEP20, Ownable{
     }
 
     function setMinTokenToSwapAndLiquify(uint256 amount) external onlyOwner{
-        require(amount>0, "amount cannot be zero");
+        require(amount > 0, "amount cannot be zero");
         uint256 minTokensToSwapAndLiquifyPrev = minTokensToSwapAndLiquify;
         minTokensToSwapAndLiquify = amount;
         emit UpdateMinTokenToSwapAndLiquify(minTokensToSwapAndLiquify, minTokensToSwapAndLiquifyPrev);
     }
 
+    function _setAutomatedMarketMakerPair(address pair, bool value) private {
+        require(automatedMarketMakerPairs[pair] != value, "AMM pair is already set");
+        automatedMarketMakerPairs[pair] = value;
+
+        emit SetAutomatedMarketMakerPair(pair, value);
+    }
+
     function withdrawResidualBNB(address newAddress) external onlyOwner() {
-        require(newAddress != address(0),  "address is empty");
+        require(newAddress != address(0),  "Error: zero address");
         uint amount = address(this).balance;
         payable(newAddress).transfer(amount);
         emit WithdrawBNB(amount);
     }
 
     function withdrawResidualToken(address newAddress) external onlyOwner() {
-        require(newAddress != address(0),  "address is empty");
+        require(newAddress != address(0),  "Error: zero address");
         uint amount = _balances[address(this)];
         _transfer(address(this), newAddress, amount);
         emit WithdrawToken(amount);
@@ -871,6 +839,13 @@ contract Vemate is  IBEP20, Ownable{
     */
     function balanceOf(address account) external override view returns(uint256){
         return _balances[account];
+    }
+
+    /**
+    * @dev Returns the bep token owner.
+    */
+    function getOwner() external override view returns (address) {
+        return owner();
     }
 
     /**
@@ -964,7 +939,7 @@ contract Vemate is  IBEP20, Ownable{
         // this check is not mandatory. but to return exact overflow reason we can use it.
         require(_currentAllowance >= subtractedValue, "BEP20: decreased allowance below zero");
         unchecked {
-            _approve(_msgSender(), spender, _currentAllowance - subtractedValue);   
+            _approve(_msgSender(), spender, _currentAllowance - subtractedValue);
         }
         return true;
     }
@@ -993,29 +968,20 @@ contract Vemate is  IBEP20, Ownable{
 
         if (_isPrivileged[sender] || _isPrivileged[recipient]){
             // takeFee already false. Do nothing and reduce gas fee.
-        } else if (recipient == uniswapV2Pair) { // sell : fee and restrictions for non-privileged wallet
-            require(amount <= TOTAL_SUPPLY, "Amount larger than max tx amount!");
-            checkSwapFrequency(sender);
-            if (fee.enabledOnSell){
-                takeFee = true;
-                if (shouldSwap()){
-                    swapAndLiquify(minTokensToSwapAndLiquify);
-                }
+        } else if (automatedMarketMakerPairs[recipient] && fee.enabledOnSell) { // sell
+            takeFee = true;
+            if (shouldSwap()){
+                uint256 contractTokenBalance = _balances[(address(this))];
+                swapAndLiquify(contractTokenBalance);
             }
-        } else if (sender == uniswapV2Pair){  // buy : fee and restrictions for non-privileged wallet
-            require(amount <= TOTAL_SUPPLY, "Amount larger than max tx amount!");
-            checkSwapFrequency(recipient);
-            if (fee.enabledOnBuy){
-                takeFee = true;
-                if (shouldSwap()){
-                    swapAndLiquify(minTokensToSwapAndLiquify);
-                }
-            }
+        } else if (automatedMarketMakerPairs[sender] && fee.enabledOnBuy){ // buy
+            takeFee = true;
         }
+
         _tokenTransfer(sender, recipient, amount, takeFee);
     }
 
-    function shouldSwap() private view returns(bool)  {
+    function shouldSwap() private view returns(bool) {
         uint256 contractTokenBalance = _balances[(address(this))];
         bool overMinTokenBalance = contractTokenBalance >= minTokensToSwapAndLiquify;
 
@@ -1025,43 +991,25 @@ contract Vemate is  IBEP20, Ownable{
         return false;
     }
 
-    // to recieve ETH from uniswapV2Router when swapping
     receive() external payable {}
 
     function swapAndLiquify(uint256 amount) private lockTheSwap {
-        // capture the contract's current ETH balance.
-        // this is so that we can capture exactly the amount of ETH that the
-        // swap creates, and not make the liquidity event include any ETH that
-        // has been manually sent to the contract
-        uint256 initialBalance = address(this).balance;
 
-        // We need to collect Bnb from the token amount
-        // treasury + marketing + charity will be send to the wallet
-        // the rest(for liquid pool) will be divided into two and be used to addLiquidity
-        uint8 totalFee = fee.treasury + fee.lp + fee.charity + fee.marketing;
-        uint256 lpHalf =  (amount*fee.lp)/(totalFee*2);
+        swapTokensForBnb(amount);
 
-        // swap treasury + marketing + charity + lpHalf
-        swapTokensForBnb(amount - lpHalf);
+        uint256 contractBnbBalance = address(this).balance;
 
-        // how much ETH did we just swap into?
-        uint256 receivedBnb = address(this).balance - initialBalance;
-
-        // get the Bnb amount for lpHalf
-        uint256 lpHalfBnbShare = (receivedBnb*fee.lp)/(totalFee*2 - fee.lp); // to avoid possible floating point error
-        uint256 treasuryBnbShare = (receivedBnb*2*fee.treasury)/(totalFee*2 - fee.lp);
-        uint256 marketingBnbShare = (receivedBnb*2*fee.marketing)/(totalFee*2 - fee.lp);
-        uint256 charityBnbShare = (receivedBnb*2*fee.charity)/(totalFee*2 - fee.lp);
+        uint256 treasuryBnbShare = contractBnbBalance * fee.treasury / fee.total;
+        uint256 charityBnbShare = contractBnbBalance * fee.charity / fee.total;
 
         feeWallets.treasury.transfer(treasuryBnbShare);
-        feeWallets.marketing.transfer(marketingBnbShare);
         feeWallets.charity.transfer(charityBnbShare);
 
-        addLiquidity(lpHalf, lpHalfBnbShare);
+        emit FeesDistributed(treasuryBnbShare, charityBnbShare);
     }
 
     function swapTokensForBnb(uint256 tokenAmount) private {
-        // generate the uniswap pair path of token -> weth
+        // generate the uniswap pair path of token -> wbnb
         address[] memory path = new address[](2);
         path[0] = address(this);
         path[1] = uniswapV2Router.WETH();
@@ -1074,28 +1022,12 @@ contract Vemate is  IBEP20, Ownable{
             0, // accept any amount of BNB
             path,
             address(this),
-            getCurrentTime()
+            block.timestamp
         ){
             emit SwapAndLiquifyStatus("Success");
-        }catch {
+        } catch {
             emit SwapAndLiquifyStatus("Failed");
         }
-    }
-
-    function addLiquidity(uint256 tokenAmount, uint256 bnbAmount) private {
-        // approve token transfer to cover all possible scenarios
-        _approve(address(this), address(uniswapV2Router), tokenAmount);
-
-        // add the liquidity
-        (uint amountToken, uint amountBnb, uint liquidity) = uniswapV2Router.addLiquidityETH{value: bnbAmount}(
-            address(this),
-            tokenAmount,
-            0, // slippage is unavoidable
-            0, // slippage is unavoidable
-            address(this),
-            getCurrentTime()
-        );
-        emit LiquidityAdded(amountToken, amountBnb, liquidity);
     }
 
     function _tokenTransfer(
@@ -1106,8 +1038,7 @@ contract Vemate is  IBEP20, Ownable{
     ) internal {
         uint256 transferAmount = amount;
         if (takeFee) {
-            uint8 totalFeePercent = fee.lp + fee.marketing + fee.charity + fee.treasury;
-            uint256 totalFee = (amount*totalFeePercent)/100;
+            uint256 totalFee = amount * fee.total / 100;
 
             // send the fee token to the contract address.
             _balances[address(this)] = _balances[address(this)] + totalFee;
@@ -1115,9 +1046,10 @@ contract Vemate is  IBEP20, Ownable{
             emit Transfer(sender, address(this), totalFee);
         }
         unchecked {
-            _balances[sender] = _balances[sender] - amount;   
+            _balances[sender] = _balances[sender] - amount;
         }
         _balances[recipient] = _balances[recipient] + transferAmount;
+
         emit Transfer(sender, recipient, transferAmount);
     }
 
@@ -1142,27 +1074,13 @@ contract Vemate is  IBEP20, Ownable{
         emit Approval(owner_, spender, amount);
     }
 
-    function checkSwapFrequency(address whom) internal{
-        uint currentTime = getCurrentTime();
-        uint lastSwapTime = _addressToLastSwapTime[whom];
-    
-        _addressToLastSwapTime[whom] = currentTime;
-    }
-
-    function getCurrentTime() internal virtual view returns(uint){
-        return block.timestamp;
-    }
-
     event UpdatePancakeRouter(IUniswapV2Router02 router, address pair);
     event UpdateTreasuryWallet(address current, address previous);
-    event UpdateMarketingWallet(address current, address previous);
     event UpdateCharityWallet(address current, address previous);
 
     event PrivilegedWallet(address _privilegedAddress, bool isPrivileged);
 
-    event UpdateLpFeePercent(uint8 current, uint8 previous);
     event UpdateTreasuryFeePercent(uint8 current, uint8 previous);
-    event UpdateMarketingFeePercent(uint8 current, uint8 previous);
     event UpdateCharityFeePercent(uint8 current, uint8 previous);
 
     event UpdateSellingFee(bool isEnabled);
@@ -1171,7 +1089,9 @@ contract Vemate is  IBEP20, Ownable{
     event UpdateSwapAndLiquify(bool swapAndLiquifyEnabled);
     event UpdateSwapTolerancePercent(uint8 swapTolerancePercent, uint8 swapTolerancePercentPrev);
     event UpdateMinTokenToSwapAndLiquify(uint256 minTokensToSwapAndLiquify, uint256 minTokensToSwapAndLiquifyPrev);
-    event LiquidityAdded(uint tokenAmount, uint bnbAmount, uint liquidity);
+    event FeesDistributed(uint256 treasuryBnbShare, uint256 charityBnbShare);
+
+    event SetAutomatedMarketMakerPair(address indexed pair, bool indexed value);
     event SwapAndLiquifyStatus(string status);
 
     event WithdrawBNB(uint amount);

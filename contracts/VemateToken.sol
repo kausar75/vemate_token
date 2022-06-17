@@ -558,17 +558,17 @@ contract Vemate is IBEP20, Ownable{
 
     IUniswapV2Router02 public uniswapV2Router;
 
-    string private _NAME;
-    string private _SYMBOL;
+    string private constant _NAME = "Vemate";
+    string private constant _SYMBOL = "VMT";
 
-    uint8 private _DECIMALS;
+    uint8 private _DECIMALS = 18;
     uint8 public constant MAX_FEE_PERCENT = 5;
     bool private inSwapAndLiquify;
     bool public swapAndLiquifyEnabled = true;
 
     address public uniswapV2Pair;
 
-    uint256 private TOTAL_SUPPLY; 
+    uint256 private constant TOTAL_SUPPLY = 15 * 10**7 * 10**_DECIMALS; // 150 million; 
 
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
@@ -591,12 +591,6 @@ contract Vemate is IBEP20, Ownable{
         require(router != address(0), "Router must be set");
         require(treasuryAddress != address(0), "Treasury wallet must be set");
         require(charityAddress != address(0), "Charity wallet must be set");
-
-        _NAME = "Vemate";
-        _SYMBOL = "VMT";
-        _DECIMALS = 18;
-
-        TOTAL_SUPPLY = 15 * 10**7 * 10**_DECIMALS; // 150 million;
 
         _isPrivileged[owner()] = true;
         _isPrivileged[address(this)] = true;

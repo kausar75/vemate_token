@@ -561,7 +561,7 @@ contract Vemate is IBEP20, Ownable{
     string private constant _NAME = "Vemate";
     string private constant _SYMBOL = "VMT";
 
-    uint8 private _DECIMALS = 18;
+    uint8 private constant _DECIMALS = 18;
     uint8 public constant MAX_FEE_PERCENT = 5;
     bool private inSwapAndLiquify;
     bool public swapAndLiquifyEnabled = true;

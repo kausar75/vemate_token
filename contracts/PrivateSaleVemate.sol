@@ -190,6 +190,24 @@ contract PrivateSale is Ownable, Vesting{
         totalAmountInVesting += tokenAmount;
     }
 
+    /**
+     * @notice sendTokensToSpecialWallet sends token to some special wallet. Special wallets will be able to claim tokens after staking period.
+     * @param tokenAmount amount of token to be sent to special wallet
+     * @param receiver address of the token receiver
+     */
+    function sendTokensToSpecialWallet(uint256 tokenAmount, address receiver) external onlyOwner{
+        address to = receiver;
+        require(to != address(0), "Zero Address!");
+        require(isInPrivateSale, "Not in PrivateSale");
+        require(!isPrivateSalePaused, "PrivateSale is paused");
+        require(getAmountLeftForPrivateSale() >= tokenAmount, "Not enough amount left for send");
+
+        totalSoldToken += totalToken;
+        uint256 time = getCurrentTime();
+        createVestingSchedule(to, time, time + (MONTH*12), tokenAmount);
+        totalAmountInVesting += tokenAmount;
+    }
+
     function balanceBUSD() external view onlyOwner returns(uint256){
         return erc20.balanceOf(address(this));
     }

@@ -195,14 +195,14 @@ contract PrivateSale is Ownable, Vesting{
      * @param tokenAmount amount of token to be sent to special wallet
      * @param receiver address of the token receiver
      */
-    function sendTokensToSpecialWallet(uint256 tokenAmount, address receiver, uint8 _numberOfMonths) external onlyOwner{
+    function sendTokensToSpecialWallet(uint256 tokenAmount, address receiver, uint16 _numberOfMonths) external onlyOwner{
         address to = receiver;
         require(to != address(0), "Zero Address!");
         require(isInPrivateSale, "Not in PrivateSale");
         require(!isPrivateSalePaused, "PrivateSale is paused");
         require(getAmountLeftForPrivateSale() >= tokenAmount, "Not enough amount left for send");
 
-        totalSoldToken += totalToken;
+        totalSoldToken += tokenAmount;
         uint256 time = getCurrentTime();
         createVestingSchedule(to, time, time + (MONTH*_numberOfMonths), tokenAmount);
         totalAmountInVesting += tokenAmount;

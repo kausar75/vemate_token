@@ -191,11 +191,41 @@ contract PrivateSale is Ownable, Vesting{
     }
 
     /**
-     * @notice sendTokensToSpecialWallet sends token to some special wallet. Special wallets will be able to claim tokens after staking period.
-     * @param tokenAmount amount of token to be sent to special wallet
+     * @notice sendTokensToMarketingWallet sends token to marketing wallet. 15% of token will be sent to marketing wallet immediately, 
+       rest won't be sent immediately rather it will be unlocked gradually and that wallet need to claim it.
+     * @param tokenAmount amount of token to be sent to Team wallet
      * @param receiver address of the token receiver
      */
-    function sendTokensToSpecialWallet(uint256 tokenAmount, address receiver, uint16 _numberOfMonths) external onlyOwner{
+    function sendTokensToMarketingWallet(uint256 tokenAmount, address receiver) external onlyOwner{
+        address to = receiver;
+        require(to != address(0), "Not a valid address");
+        require(isInPrivateSale, "Not in a PrivateSale");
+        require(!isPrivateSalePaused, "PrivateSale is Paused");
+        require(getAmountLeftForPrivateSale()>= tokenAmount, "Not enough amount left for sell");
+
+        uint256 time = getCurrentTime();
+         
+        //unlock 15% on initialTokenUnlockTime
+        createVestingSchedule(to, time, initialTokenUnlockTime, (tokenAmount*15)/100);
+
+        for (uint8 i = 1; i < 12; i++){
+            // unlock 7% on each month
+            createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*i), (tokenAmount*7)/100);
+        }
+        // unlock last 8% on 12th month after initialTokenUnlockTime
+        createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*12), (tokenAmount*8)/100);
+
+        totalAmountInVesting += tokenAmount;
+        totalSoldToken += tokenAmount;
+    }
+
+    /**
+     * @notice sendTokensToTeamWallet sends token to Team wallet. token won't be sent immediately rather it will be unlocked after 
+       12 months and that wallet need to claim it.
+     * @param tokenAmount amount of token to be sent to Team wallet
+     * @param receiver address of the token receiver
+     */
+    function sendTokensToTeamWallet(uint256 tokenAmount, address receiver) external onlyOwner{
         address to = receiver;
         require(to != address(0), "Zero Address!");
         require(isInPrivateSale, "Not in PrivateSale");
@@ -204,8 +234,37 @@ contract PrivateSale is Ownable, Vesting{
 
         totalSoldToken += tokenAmount;
         uint256 time = getCurrentTime();
-        createVestingSchedule(to, time, time + (MONTH*_numberOfMonths), tokenAmount);
+        createVestingSchedule(to, time, time + (MONTH*12), tokenAmount);
         totalAmountInVesting += tokenAmount;
+    }
+
+    /**
+     * @notice sendTokensToReserveWallet sends token to some special wallet. 20% of token will be sent to reserve wallet immediately, 
+       rest won't be sent immediately rather it will be unlocked gradually and that wallet need to claim it.
+     * @param tokenAmount amount of token to be sent to Team wallet
+     * @param receiver address of the token receiver
+     */
+    function sendTokensToReserveWallet(uint256 tokenAmount, address receiver) external onlyOwner{
+        address to = receiver;
+        require(to != address(0), "Not a valid address");
+        require(isInPrivateSale, "Not in a PrivateSale");
+        require(!isPrivateSalePaused, "PrivateSale is Paused");
+        require(getAmountLeftForPrivateSale()>= tokenAmount, "Not enough amount left for sell");
+
+        uint256 time = getCurrentTime();
+         
+        //unlock 20% on initialTokenUnlockTime
+        createVestingSchedule(to, time, initialTokenUnlockTime, (tokenAmount*20)/100);
+
+        for (uint8 i = 1; i < 11; i++){
+            // unlock 7% on each month
+            createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*i), (tokenAmount*7)/100);
+        }
+        // unlock last 10% on 11th month after initialTokenUnlockTime
+        createVestingSchedule(to, time, initialTokenUnlockTime + (MONTH*11), (tokenAmount*10)/100);
+
+        totalAmountInVesting += tokenAmount;
+        totalSoldToken += tokenAmount;
     }
 
     function balanceBUSD() external view onlyOwner returns(uint256){

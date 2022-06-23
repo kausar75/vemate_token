@@ -69,6 +69,15 @@ contract PrivateSale is Ownable, Vesting{
         isPrivateSalePaused = !isPrivateSalePaused;
     }
 
+    /**
+    * @notice setListingTime is to update the initial unlocking time
+    * @param _setListingTime time what owner want to set
+    */
+    function setListingTime(uint256 _setListingTime) external onlyOwner {
+        require(isInPrivateSale, "PrivateSale not started");
+        initialTokenUnlockTime = _setListingTime;
+    }
+
     function updateVematePrice(uint256 _vematePerBUSD) external onlyOwner{
         vematePerBUSD = _vematePerBUSD;
     }

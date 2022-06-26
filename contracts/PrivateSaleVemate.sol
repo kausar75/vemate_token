@@ -311,7 +311,7 @@ contract PrivateSale is Ownable, Vesting{
     * @dev Claim the withdrawable tokens
     */
     function claimWithdrawableAmount() external lockTheWithdraw{
-        uint256 amount = claim(_msgSender());
+        uint256 amount = claim(_msgSender(), initialTokenUnlockTime);
         vemate.transfer(_msgSender(), amount);
         totalAmountInVesting -= amount;
     }
